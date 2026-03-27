@@ -427,6 +427,125 @@
 
         .log-entry strong { color: #1a1a1a; }
 
+        /* ============ STEP-BY-STEP CRYPTO ============ */
+        .crypto-step {
+            background: white;
+            border-radius: 14px;
+            margin-bottom: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            animation: fadeIn 0.4s;
+        }
+
+        .crypto-step-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 14px;
+        }
+
+        .crypto-step-num {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 700;
+            flex-shrink: 0;
+            color: white;
+        }
+
+        .step-num-active { background: #c41e3a; }
+        .step-num-done { background: #2e7d32; }
+        .step-num-pending { background: #ccc; color: #888; }
+
+        .crypto-step-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        .crypto-step-icon {
+            margin-left: auto;
+            font-size: 18px;
+        }
+
+        .crypto-step-body {
+            padding: 0 14px 12px 52px;
+            font-size: 11px;
+            color: #666;
+            line-height: 1.5;
+        }
+
+        .crypto-step-body .hex {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            color: #555;
+            display: inline-block;
+            margin: 2px 0;
+            word-break: break-all;
+        }
+
+        .crypto-step-body .analogy {
+            background: #fff8e1;
+            border-left: 3px solid #f9a825;
+            padding: 6px 10px;
+            border-radius: 0 6px 6px 0;
+            margin: 6px 0;
+            font-size: 11px;
+            color: #795548;
+        }
+
+        .crypto-step-body .result {
+            background: #e8f5e9;
+            border-left: 3px solid #2e7d32;
+            padding: 6px 10px;
+            border-radius: 0 6px 6px 0;
+            margin: 6px 0;
+            font-size: 11px;
+            color: #2e7d32;
+            font-weight: 500;
+        }
+
+        .btn-next {
+            background: linear-gradient(135deg, #2968a8, #357abd);
+            color: white;
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            margin-top: 4px;
+            transition: transform 0.1s;
+        }
+
+        .btn-next:active { transform: scale(0.98); }
+
+        .progress-steps {
+            display: flex;
+            gap: 4px;
+            margin: 10px 0;
+        }
+
+        .progress-step {
+            flex: 1;
+            height: 4px;
+            border-radius: 2px;
+            background: #e0e0e0;
+            transition: background 0.3s;
+        }
+
+        .progress-step.done { background: #2e7d32; }
+        .progress-step.active { background: #c41e3a; }
+
         .section-title {
             font-size: 12px;
             font-weight: 600;
@@ -654,7 +773,7 @@
         </div>
     </div>
 
-    <!-- EKRAN 2: Przetwarzanie -->
+    <!-- EKRAN 2: Krok po kroku kryptografia -->
     <div class="screen-step" id="step2">
         <div class="header header-red">
             <div class="header-logo">mObywatel</div>
@@ -663,22 +782,11 @@
                 <svg class="header-icon" viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
             </div>
         </div>
-        <div class="status-date">Przetwarzanie...</div>
+        <div class="status-date">Co dzieje się pod spodem?</div>
         <div class="content">
-            <div class="card">
-                <div class="lock-container">
-                    <div class="lock-icon">⏳</div>
-                    <div class="lock-text" id="processingText">Zaślepiam token...</div>
-                    <div class="lock-subtext" id="processingSubtext">Generowanie losowego czynnika zaślepiającego</div>
-                </div>
-            </div>
-            <div class="section-title">Dziennik kryptograficzny</div>
-            <div id="cryptoLog"></div>
-            <div class="steps">
-                <div class="step-dot done"></div>
-                <div class="step-dot active"></div>
-                <div class="step-dot"></div>
-            </div>
+            <div class="progress-steps" id="progressSteps"></div>
+            <div id="cryptoStepsContainer"></div>
+            <button class="btn-next" id="btnNext">Dalej →</button>
         </div>
         <div class="bottom-nav">
             <div class="nav-item active"><span class="nav-icon">🏠</span><span>Główna</span></div>
@@ -799,7 +907,9 @@ const state = {
     codeExpiry: null,
     codeUsed: false,
     timerInterval: null,
-    activeCodes: {} // symulacja bazy Rządu B
+    activeCodes: {},
+    cryptoStep: 0,
+    cryptoSteps: []
 };
 
 // ============ NAWIGACJA EKRANÓW ============
@@ -817,96 +927,155 @@ function formatCode(code) {
     return code.slice(0, 3) + ' ' + code.slice(3);
 }
 
-// ============ SYMULACJA KRYPTOGRAFII ============
 function randomHex(len) {
     return '0x' + Array.from({length: len}, () =>
         Math.floor(Math.random() * 16).toString(16)
     ).join('');
 }
 
-async function runCryptoAnimation() {
-    showStep('step2');
-    const log = document.getElementById('cryptoLog');
-    const text = document.getElementById('processingText');
-    const sub = document.getElementById('processingSubtext');
-    log.innerHTML = '';
+// ============ INTERAKTYWNA KRYPTOGRAFIA ============
+function initCryptoSteps() {
+    const tokenHex = randomHex(20);
+    const blindedHex = randomHex(20);
+    const sigHex = randomHex(20);
+    const unblindedSigHex = randomHex(20);
+    const oprfInHex = randomHex(16);
+    const oprfOutHex = randomHex(16);
+    const code = generateCode();
 
-    const steps = [
+    state.cryptoSteps = [
         {
-            text: 'Zaślepiam token...',
-            sub: 'Generowanie losowego czynnika zaślepiającego r',
-            log: `<strong>Użytkownik:</strong> Token wygenerowany<br>Hash: ${randomHex(16)}...`
+            icon: '🎫',
+            title: 'Generuję losowy token',
+            body: `Twój telefon tworzy losową liczbę — Twój <strong>anonimowy bilet</strong>.
+                <div class="hex">${tokenHex}</div>
+                <div class="analogy">Analogia: piszesz tajną wiadomość na kartce</div>`
         },
         {
-            text: 'Zaślepiam token...',
-            sub: 'Obliczam: zaslepiony = token × r^e mod n',
-            log: `<strong>Użytkownik:</strong> Token zaślepiony<br>Rząd A zobaczy: ${randomHex(16)}... <em>(losowy szum)</em>`
+            icon: '📦',
+            title: 'Wkładam token do koperty',
+            body: `Token zostaje pomnożony przez losowy czynnik <strong>r</strong> — to jest zaślepienie. Wynik to <strong>losowy szum</strong>, z którego nikt nie odczyta oryginału.
+                <div class="hex">${blindedHex}</div>
+                <div class="analogy">Analogia: wkładasz kartkę do nieprzezroczystej koperty z kalką wewnątrz</div>`
         },
         {
-            text: 'Wysyłam do Rządu A...',
-            sub: 'PESEL + zaślepiony token → mObywatel',
-            log: `<strong>Rząd A:</strong> Weryfikacja PESEL → wiek 31 lat ✓<br>Podpisuję zaślepiony token (nie wiem co to jest!)`
+            icon: '🏛️',
+            title: 'Rząd A sprawdza wiek i podpisuje',
+            body: `Wysyłasz <strong>PESEL + zaklejoną kopertę</strong> do mObywatel.<br>
+                Rząd A sprawdza: wiek 31 lat ✓<br>
+                Podpisuje kopertę — <strong>nie widzi co jest w środku!</strong>
+                <div class="hex">podpis(${blindedHex.slice(0,14)}...) = ${sigHex}</div>
+                <div class="result">Rząd A wie KTO poprosił, ale NIE WIE co podpisał</div>`
         },
         {
-            text: 'Odślepiam podpis...',
-            sub: 'podpis = slepy_podpis × r⁻¹ mod n',
-            log: `<strong>Użytkownik:</strong> Podpis odślepiony ✓<br>Mam ważny podpis na tokenie, którego Rząd A nigdy nie widział!`
+            icon: '✉️',
+            title: 'Otwieram kopertę — odślepiam podpis',
+            body: `Dzielisz podpis przez czynnik <strong>r</strong>. Wynik: <strong>ważny podpis RSA</strong> na Twoim oryginalnym tokenie!
+                <div class="hex">odślepiony = ${unblindedSigHex}</div>
+                <div class="result">Masz podpis rządu na dokumencie, którego rząd nigdy nie widział!</div>
+                <div class="analogy">Analogia: otwierasz kopertę — podpis urzędnika przeszedł przez kalkę na kartkę</div>`
         },
         {
-            text: 'Wysyłam do Rządu B...',
-            sub: 'Anonimowy token + podpis Rządu A → NASK',
-            log: `<strong>Rząd B:</strong> Podpis Rządu A ważny ✓<br>Ktoś anonimowy ma 18+ — nie wiem kto`
+            icon: '🕵️',
+            title: 'Anonimowo wysyłam token do Rządu B',
+            body: `Wysyłasz <strong>token + podpis Rządu A</strong> do NASK.<br>
+                <strong>Bez PESELu, bez imienia — nic!</strong><br>
+                Rząd B weryfikuje podpis → ważny ✓
+                <div class="result">Rząd B wie, ŻE ktoś ma 18+, ale NIE WIE kto</div>`
         },
         {
-            text: 'Przetwarzam OPRF...',
-            sub: 'Serwer oblicza na zaślepionych danych',
-            log: `<strong>Rząd B:</strong> OPRF przetworzono<br>Wejście: ${randomHex(12)}... Wyjście: ${randomHex(12)}... <em>(oba to szum)</em>`
+            icon: '🧮',
+            title: 'OPRF — serwer oblicza nie widząc danych',
+            body: `Zaślepiasz dane wejściowe i wysyłasz do serwera B. Serwer przetwarza je swoim kluczem — ale <strong>nie widzi ani wejścia, ani wyjścia</strong>.
+                <div class="hex">wejście: ${oprfInHex}  →  wyjście: ${oprfOutHex}</div>
+                <div class="analogy">Analogia: prosisz kogoś o podpis przez ścianę — podaje rękę przez dziurę, podpisuje, ale nie widzi dokumentu</div>`
         },
         {
-            text: 'Generuję kod...',
-            sub: 'Kod 6-cyfrowy z TTL 5 minut',
-            log: null // dodamy po wygenerowaniu kodu
-        },
+            icon: '🔢',
+            title: 'Kod wygenerowany!',
+            body: `Rząd B generuje <strong>6-cyfrowy kod jednorazowy</strong> powiązany z anonimowym tokenem.
+                <div class="result" style="font-size:20px; text-align:center; padding:12px;">★ ${formatCode(code)} ★</div>
+                Kod ważny <strong>5 minut</strong>. Po użyciu — spalony. Nikt nie może powiązać kodu z Twoją tożsamością.`
+        }
     ];
 
-    for (let i = 0; i < steps.length; i++) {
-        const step = steps[i];
-        text.textContent = step.text;
-        sub.textContent = step.sub;
+    state.currentCode = code;
+    state.codeExpiry = Date.now() + 300000;
+    state.codeUsed = false;
+    state.activeCodes[code] = { expiry: state.codeExpiry, used: false };
+    state.cryptoStep = 0;
+}
 
-        if (i === steps.length - 1) {
-            // Generuj prawdziwy kod
-            const code = generateCode();
-            state.currentCode = code;
-            state.codeExpiry = Date.now() + 300000; // 5 minut
-            state.codeUsed = false;
-            state.activeCodes[code] = {
-                expiry: state.codeExpiry,
-                used: false
-            };
+function renderCryptoStep() {
+    const container = document.getElementById('cryptoStepsContainer');
+    const progressBar = document.getElementById('progressSteps');
+    const btn = document.getElementById('btnNext');
+    const steps = state.cryptoSteps;
+    const current = state.cryptoStep;
 
-            const entry = document.createElement('div');
-            entry.className = 'log-entry';
-            entry.innerHTML = `<strong>Rząd B:</strong> Wygenerowano kod <strong>${formatCode(code)}</strong><br>Tożsamość: NIEZNANA (ślepy podpis uniemożliwia identyfikację)`;
-            log.appendChild(entry);
-        } else if (step.log) {
-            const entry = document.createElement('div');
-            entry.className = 'log-entry';
-            entry.innerHTML = step.log;
-            log.appendChild(entry);
-        }
+    // Progress bar
+    progressBar.innerHTML = steps.map((_, i) =>
+        `<div class="progress-step ${i < current ? 'done' : i === current ? 'active' : ''}"></div>`
+    ).join('');
 
-        await sleep(600 + Math.random() * 400);
+    // Render visible steps
+    container.innerHTML = '';
+
+    // Show completed steps (collapsed)
+    for (let i = 0; i < current; i++) {
+        container.innerHTML += `
+            <div class="crypto-step" style="opacity:0.6">
+                <div class="crypto-step-header">
+                    <div class="crypto-step-num step-num-done">${i + 1}</div>
+                    <div class="crypto-step-title">${steps[i].title}</div>
+                    <div class="crypto-step-icon">✓</div>
+                </div>
+            </div>`;
     }
 
-    await sleep(500);
+    // Show current step (expanded)
+    if (current < steps.length) {
+        container.innerHTML += `
+            <div class="crypto-step">
+                <div class="crypto-step-header">
+                    <div class="crypto-step-num step-num-active">${current + 1}</div>
+                    <div class="crypto-step-title">${steps[current].title}</div>
+                    <div class="crypto-step-icon">${steps[current].icon}</div>
+                </div>
+                <div class="crypto-step-body">${steps[current].body}</div>
+            </div>`;
+    }
 
-    // Przejdź do ekranu kodu
-    document.getElementById('codeDisplay').textContent = formatCode(state.currentCode);
-    document.getElementById('usageStatus').textContent = 'Jednorazowy';
-    document.getElementById('usageStatus').style.color = '';
-    startTimer();
-    showStep('step3');
+    // Button text
+    if (current >= steps.length - 1) {
+        btn.textContent = 'Pokaż kod →';
+    } else {
+        btn.textContent = `Dalej → (${current + 1}/${steps.length})`;
+    }
+
+    // Auto-scroll to bottom
+    container.parentElement.scrollTop = container.parentElement.scrollHeight;
+}
+
+function advanceCryptoStep() {
+    if (state.cryptoStep >= state.cryptoSteps.length - 1) {
+        // Go to code screen
+        document.getElementById('codeDisplay').textContent = formatCode(state.currentCode);
+        document.getElementById('usageStatus').textContent = 'Jednorazowy';
+        document.getElementById('usageStatus').style.color = '';
+        document.getElementById('codeDisplay').style.opacity = '1';
+        startTimer();
+        showStep('step3');
+        return;
+    }
+    state.cryptoStep++;
+    renderCryptoStep();
+}
+
+function startCryptoFlow() {
+    initCryptoSteps();
+    showStep('step2');
+    renderCryptoStep();
 }
 
 // ============ TIMER ============
@@ -1054,25 +1223,21 @@ function resetSite() {
 
 // ============ PRZYCISKI ============
 document.getElementById('btnGenerate').addEventListener('click', () => {
-    runCryptoAnimation();
+    startCryptoFlow();
+});
+
+document.getElementById('btnNext').addEventListener('click', () => {
+    advanceCryptoStep();
 });
 
 document.getElementById('btnNewCode').addEventListener('click', () => {
-    // Usuń stary kod
     if (state.currentCode && state.activeCodes[state.currentCode]) {
         delete state.activeCodes[state.currentCode];
     }
     if (state.timerInterval) clearInterval(state.timerInterval);
-
-    document.getElementById('codeDisplay').style.opacity = '1';
     resetSite();
-    runCryptoAnimation();
+    startCryptoFlow();
 });
-
-// ============ UTILITY ============
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
 </script>
 
 </body>
