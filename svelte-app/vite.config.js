@@ -3,4 +3,10 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 
 export default defineConfig({
   plugins: [svelte()],
+  server: {
+    allowedHosts: ['mobywatel.baumg.art'],
+  },
+  preview: {
+    allowedHosts: ['mobywatel.baumg.art'],
+  },
 });

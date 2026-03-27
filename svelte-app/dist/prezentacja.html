@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prezentacja — Anonimowa Weryfikacja Wieku</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0f0f1a;
+            color: #fff;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .viewer {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Top bar */
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 24px;
+            background: rgba(15, 15, 26, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            flex-shrink: 0;
+            z-index: 10;
+        }
+
+        .topbar-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .back-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.12);
+            color: #ccc;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .back-btn:hover { background: rgba(255,255,255,0.14); color: #fff; }
+
+        .topbar-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .slide-counter {
+            font-size: 13px;
+            color: #888;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Slide area */
+        .slide-area {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .slide-img {
+            max-width: 90vw;
+            max-height: calc(100vh - 120px);
+            border-radius: 8px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            transition: opacity 0.25s ease;
+            object-fit: contain;
+        }
+
+        .slide-img.fading { opacity: 0; }
+
+        /* Nav arrows */
+        .nav-arrow {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #fff;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+            z-index: 5;
+        }
+
+        .nav-arrow:hover { background: rgba(255,255,255,0.18); }
+        .nav-arrow:disabled { opacity: 0.2; cursor: default; }
+        .nav-arrow.prev { left: 20px; }
+        .nav-arrow.next { right: 20px; }
+
+        /* Bottom progress */
+        .progress-bar {
+            height: 3px;
+            background: rgba(255,255,255,0.08);
+            flex-shrink: 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #c41e3a, #d4234a);
+            transition: width 0.3s ease;
+        }
+
+        /* Thumbnail strip */
+        .thumbstrip {
+            display: flex;
+            gap: 8px;
+            padding: 10px 24px;
+            background: rgba(15, 15, 26, 0.95);
+            border-top: 1px solid rgba(255,255,255,0.08);
+            overflow-x: auto;
+            flex-shrink: 0;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.15) transparent;
+        }
+
+        .thumb {
+            width: 100px;
+            height: 56px;
+            border-radius: 6px;
+            object-fit: cover;
+            cursor: pointer;
+            border: 2px solid transparent;
+            opacity: 0.5;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .thumb:hover { opacity: 0.8; }
+        .thumb.active { border-color: #c41e3a; opacity: 1; }
+
+        @media (max-width: 768px) {
+            .nav-arrow { width: 36px; height: 36px; font-size: 16px; }
+            .nav-arrow.prev { left: 8px; }
+            .nav-arrow.next { right: 8px; }
+            .topbar { padding: 10px 14px; }
+            .topbar-title { font-size: 12px; }
+            .thumb { width: 72px; height: 40px; }
+            .thumbstrip { padding: 8px 14px; gap: 6px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="viewer">
+    <div class="topbar">
+        <div class="topbar-left">
+            <a href="/" class="back-btn">&larr; Demo</a>
+            <span class="topbar-title">Anonimowa Weryfikacja Wieku</span>
+        </div>
+        <span class="slide-counter" id="counter">1 / 10</span>
+    </div>
+
+    <div class="slide-area" id="slideArea">
+        <button class="nav-arrow prev" id="prevBtn" disabled>&larr;</button>
+        <img class="slide-img" id="slideImg" src="slide_images/slide-01.jpg" alt="Slajd 1">
+        <button class="nav-arrow next" id="nextBtn">&rarr;</button>
+    </div>
+
+    <div class="progress-bar">
+        <div class="progress-fill" id="progressFill" style="width: 10%"></div>
+    </div>
+
+    <div class="thumbstrip" id="thumbstrip"></div>
+</div>
+
+<script>
+    const TOTAL = 10;
+    let current = 0;
+
+    const img = document.getElementById('slideImg');
+    const counter = document.getElementById('counter');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const progress = document.getElementById('progressFill');
+    const strip = document.getElementById('thumbstrip');
+
+    function slideSrc(i) {
+        return `slide_images/slide-${String(i + 1).padStart(2, '0')}.jpg`;
+    }
+
+    // Build thumbnails
+    for (let i = 0; i < TOTAL; i++) {
+        const t = document.createElement('img');
+        t.className = 'thumb' + (i === 0 ? ' active' : '');
+        t.src = slideSrc(i);
+        t.alt = `Slajd ${i + 1}`;
+        t.addEventListener('click', () => goTo(i));
+        strip.appendChild(t);
+    }
+
+    function goTo(i) {
+        if (i < 0 || i >= TOTAL || i === current) return;
+        img.classList.add('fading');
+        setTimeout(() => {
+            current = i;
+            img.src = slideSrc(current);
+            img.alt = `Slajd ${current + 1}`;
+            counter.textContent = `${current + 1} / ${TOTAL}`;
+            prevBtn.disabled = current === 0;
+            nextBtn.disabled = current === TOTAL - 1;
+            progress.style.width = ((current + 1) / TOTAL * 100) + '%';
+
+            document.querySelectorAll('.thumb').forEach((t, idx) => {
+                t.classList.toggle('active', idx === current);
+            });
+
+            // Scroll active thumb into view
+            strip.children[current].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+
+            img.classList.remove('fading');
+        }, 150);
+    }
+
+    prevBtn.addEventListener('click', () => goTo(current - 1));
+    nextBtn.addEventListener('click', () => goTo(current + 1));
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft') goTo(current - 1);
+        else if (e.key === 'ArrowRight') goTo(current + 1);
+        else if (e.key === 'Escape') window.location.href = '/';
+    });
+
+    // Swipe support
+    let touchStartX = 0;
+    const area = document.getElementById('slideArea');
+    area.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; });
+    area.addEventListener('touchend', (e) => {
+        const diff = e.changedTouches[0].clientX - touchStartX;
+        if (Math.abs(diff) > 50) {
+            if (diff > 0) goTo(current - 1);
+            else goTo(current + 1);
+        }
+    });
+</script>
+
+<script src="/auth.js"></script>
+</body>
+</html>
