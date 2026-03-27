@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>mObywatel — Weryfikacja Wieku (Interaktywne Demo)</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #4a90d9 0%, #357abd 30%, #2968a8 70%, #1a5694 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 30px 20px;
+            gap: 40px;
+        }
+
+        /* ============ PHONE FRAME ============ */
+        .phone {
+            width: 360px;
+            height: 740px;
+            background: #f5f5f7;
+            border-radius: 44px;
+            overflow: hidden;
+            box-shadow:
+                0 25px 60px rgba(0,0,0,0.3),
+                0 0 0 2px rgba(0,0,0,0.1),
+                inset 0 0 0 2px rgba(255,255,255,0.1);
+            position: relative;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .phone::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 28px;
+            background: #1a1a1a;
+            border-radius: 0 0 18px 18px;
+            z-index: 100;
+        }
+
+        /* ============ SITE FRAME ============ */
+        .site-frame {
+            width: 480px;
+            min-height: 740px;
+            background: #1a1a2e;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.3);
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .browser-bar {
+            background: #2d2d44;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .browser-dots {
+            display: flex;
+            gap: 6px;
+        }
+
+        .browser-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .dot-red { background: #ff5f57; }
+        .dot-yellow { background: #febc2e; }
+        .dot-green { background: #28c840; }
+
+        .browser-url {
+            flex: 1;
+            background: #1a1a2e;
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 12px;
+            color: #888;
+            font-family: monospace;
+        }
+
+        .browser-url .lock { color: #28c840; }
+
+        .site-content {
+            flex: 1;
+            padding: 32px 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* ============ SHARED HEADER ============ */
+        .header {
+            padding: 44px 20px 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .header-red { background: linear-gradient(135deg, #d4234a 0%, #c41e3a 100%); }
+        .header-green { background: linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%); }
+
+        .header-logo {
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .header-icons { display: flex; gap: 14px; }
+
+        .header-icon {
+            width: 22px;
+            height: 22px;
+            fill: white;
+            opacity: 0.9;
+        }
+
+        .status-date {
+            font-size: 11px;
+            color: #888;
+            text-align: center;
+            padding: 8px;
+            flex-shrink: 0;
+        }
+
+        /* ============ CONTENT ============ */
+        .content {
+            flex: 1;
+            padding: 10px 16px 16px;
+            overflow-y: auto;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 18px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .card-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .card-icon-blue { background: #e3f2fd; }
+        .card-icon-red { background: #fce4ec; }
+        .card-icon-green { background: #e8f5e9; }
+
+        .card-title { font-size: 15px; font-weight: 600; color: #1a1a1a; }
+        .card-subtitle { font-size: 11px; color: #888; margin-top: 2px; }
+
+        /* User info */
+        .user-card {
+            display: flex;
+            gap: 14px;
+            align-items: center;
+            padding-bottom: 14px;
+            border-bottom: 1px solid #f0f0f0;
+            margin-bottom: 10px;
+        }
+
+        .user-photo {
+            width: 58px;
+            height: 72px;
+            background: linear-gradient(135deg, #ddd, #ccc);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            color: #999;
+            flex-shrink: 0;
+            border: 2px solid #e0e0e0;
+        }
+
+        .user-name .first { font-size: 14px; color: #888; }
+        .user-name .last { font-size: 17px; font-weight: 700; color: #1a1a1a; }
+        .user-name .pesel-label { font-size: 10px; color: #aaa; margin-top: 6px; }
+        .user-name .pesel { font-size: 13px; font-weight: 500; color: #1a1a1a; }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .info-row:last-child { border-bottom: none; }
+        .info-label { font-size: 12px; color: #888; }
+        .info-value { font-size: 13px; font-weight: 500; color: #1a1a1a; }
+
+        .badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            margin-top: 10px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .badge-success { background: #e8f5e9; color: #2e7d32; }
+
+        .flag-pl {
+            display: inline-flex;
+            width: 24px;
+            height: 16px;
+            border-radius: 3px;
+            overflow: hidden;
+            flex-direction: column;
+            border: 1px solid #e0e0e0;
+        }
+
+        .flag-white { background: white; flex: 1; }
+        .flag-red { background: #dc143c; flex: 1; }
+
+        /* ============ BUTTONS ============ */
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            margin-top: 6px;
+            transition: transform 0.1s, opacity 0.2s;
+        }
+
+        .btn:active { transform: scale(0.98); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn-primary { background: linear-gradient(135deg, #c41e3a, #d4234a); color: white; }
+        .btn-green { background: linear-gradient(135deg, #2e7d32, #43a047); color: white; }
+
+        /* ============ CODE DISPLAY ============ */
+        .code-display { text-align: center; padding: 20px 12px; }
+
+        .code-label {
+            font-size: 11px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 6px;
+        }
+
+        .code-number {
+            font-size: 44px;
+            font-weight: 800;
+            letter-spacing: 8px;
+            color: #1a1a1a;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .code-timer {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .timer-ok { color: #2e7d32; }
+        .timer-warn { color: #f57f17; }
+        .timer-danger { color: #c41e3a; }
+
+        .timer-bar {
+            width: 100%;
+            height: 4px;
+            background: #f0f0f0;
+            border-radius: 2px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .timer-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 1s linear, background-color 1s;
+        }
+
+        .fill-ok { background: #2e7d32; }
+        .fill-warn { background: #f57f17; }
+        .fill-danger { background: #c41e3a; }
+
+        /* ============ CRYPTO VIZ ============ */
+        .crypto-viz {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            margin: 8px 0;
+            font-size: 11px;
+            color: #666;
+        }
+
+        .crypto-arrow { font-size: 14px; color: #c41e3a; }
+
+        /* ============ STEPS ============ */
+        .steps {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin: 12px 0;
+        }
+
+        .step-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ddd;
+            transition: background 0.3s;
+        }
+
+        .step-dot.active { background: #c41e3a; }
+        .step-dot.done { background: #2e7d32; }
+
+        /* ============ SHIELD ============ */
+        .privacy-shield {
+            text-align: center;
+            padding: 8px;
+        }
+
+        .shield-text {
+            font-size: 11px;
+            color: #888;
+            line-height: 1.5;
+        }
+
+        .shield-text strong { color: #2e7d32; }
+
+        .lock-container { text-align: center; padding: 16px; }
+
+        .lock-icon {
+            font-size: 48px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .lock-text { margin-top: 8px; font-size: 14px; color: #2e7d32; font-weight: 600; }
+        .lock-subtext { font-size: 11px; color: #888; margin-top: 4px; }
+
+        /* ============ BOTTOM NAV ============ */
+        .bottom-nav {
+            display: flex;
+            justify-content: space-around;
+            padding: 8px 0 22px;
+            border-top: 1px solid #e8e8e8;
+            background: white;
+            flex-shrink: 0;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+            font-size: 10px;
+            color: #888;
+        }
+
+        .nav-item.active { color: #c41e3a; }
+        .nav-icon { font-size: 18px; }
+
+        /* ============ LOG ============ */
+        .log-entry {
+            font-size: 11px;
+            padding: 8px 10px;
+            margin: 4px 0;
+            border-radius: 8px;
+            background: #f8f9fa;
+            color: #555;
+            line-height: 1.4;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .log-entry strong { color: #1a1a1a; }
+
+        .section-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 8px 0 6px;
+        }
+
+        /* ============ SITE STYLES ============ */
+        .site-logo {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .site-title {
+            color: #fff;
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .site-subtitle {
+            color: #888;
+            font-size: 13px;
+            margin-bottom: 32px;
+        }
+
+        .site-card {
+            background: #2d2d44;
+            border-radius: 16px;
+            padding: 24px;
+            width: 100%;
+            margin-bottom: 16px;
+        }
+
+        .site-card-title {
+            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        .site-input {
+            width: 100%;
+            padding: 16px;
+            background: #1a1a2e;
+            border: 2px solid #3d3d5c;
+            border-radius: 12px;
+            color: #fff;
+            font-size: 28px;
+            font-weight: 700;
+            font-family: inherit;
+            text-align: center;
+            letter-spacing: 10px;
+            outline: none;
+            transition: border-color 0.2s;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .site-input:focus { border-color: #7c4dff; }
+        .site-input::placeholder {
+            color: #555;
+            font-size: 16px;
+            letter-spacing: 2px;
+            font-weight: 400;
+        }
+
+        .site-btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            margin-top: 16px;
+            transition: transform 0.1s, opacity 0.2s;
+            background: linear-gradient(135deg, #7c4dff, #651fff);
+            color: white;
+        }
+
+        .site-btn:active { transform: scale(0.98); }
+        .site-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .site-result {
+            width: 100%;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            margin-top: 16px;
+            animation: fadeIn 0.4s;
+        }
+
+        .result-success {
+            background: rgba(46, 125, 50, 0.15);
+            border: 2px solid #2e7d32;
+        }
+
+        .result-fail {
+            background: rgba(196, 30, 58, 0.15);
+            border: 2px solid #c41e3a;
+        }
+
+        .result-icon { font-size: 40px; margin-bottom: 8px; }
+        .result-text { color: #fff; font-size: 16px; font-weight: 600; }
+        .result-sub { color: #aaa; font-size: 12px; margin-top: 6px; }
+
+        .site-info {
+            color: #666;
+            font-size: 11px;
+            text-align: center;
+            margin-top: 16px;
+            line-height: 1.5;
+        }
+
+        .site-info strong { color: #aaa; }
+
+        .site-reset {
+            background: none;
+            border: 1px solid #3d3d5c;
+            color: #aaa;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 13px;
+            cursor: pointer;
+            margin-top: 12px;
+        }
+
+        .site-reset:hover { border-color: #7c4dff; color: #fff; }
+
+        /* ============ HIDDEN SCREENS ============ */
+        .screen-step { display: none; }
+        .screen-step.active { display: flex; flex-direction: column; height: 100%; }
+
+        /* ============ RESPONSIVE ============ */
+        @media (max-width: 900px) {
+            body {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ===================== TELEFON mObywatel ===================== -->
+<div class="phone">
+    <!-- EKRAN 1: Weryfikacja tożsamości -->
+    <div class="screen-step active" id="step1">
+        <div class="header header-red">
+            <div class="header-logo">mObywatel</div>
+            <div class="header-icons">
+                <svg class="header-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                <svg class="header-icon" viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+            </div>
+        </div>
+        <div class="status-date">Stan na dzień 27 marca 2026</div>
+        <div class="content">
+            <div class="card">
+                <div class="user-card">
+                    <div class="user-photo">👤</div>
+                    <div class="user-name">
+                        <div class="first">JAN STANISŁAW</div>
+                        <div class="last">KOWALSKI</div>
+                        <div class="pesel-label">Nr PESEL</div>
+                        <div class="pesel">95030112345</div>
+                    </div>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Data urodzenia</span>
+                    <span class="info-value">01.03.1995</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Wiek</span>
+                    <span class="info-value">31 lat</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Obywatelstwo</span>
+                    <span class="info-value" style="display:flex;align-items:center;gap:6px;">
+                        <span class="flag-pl"><span class="flag-white"></span><span class="flag-red"></span></span>
+                        Polskie
+                    </span>
+                </div>
+                <div class="badge badge-success">
+                    <span>✓</span> Tożsamość zweryfikowana
+                </div>
+            </div>
+
+            <div class="section-title">Weryfikacja wieku</div>
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-icon card-icon-blue">🔒</div>
+                    <div>
+                        <div class="card-title">Potwierdź pełnoletność</div>
+                        <div class="card-subtitle">Anonimowa weryfikacja 18+</div>
+                    </div>
+                </div>
+                <div class="crypto-viz">
+                    <span>🎫 Token</span>
+                    <span class="crypto-arrow">→</span>
+                    <span>📦 Koperta</span>
+                    <span class="crypto-arrow">→</span>
+                    <span>✍️ Podpis</span>
+                </div>
+                <button class="btn btn-primary" id="btnGenerate">Generuj anonimowy token</button>
+                <div class="privacy-shield">
+                    <div class="shield-text">
+                        Twój token zostanie <strong>zaślepiony</strong> — Rząd A podpisze go <strong>nie widząc zawartości</strong>
+                    </div>
+                </div>
+            </div>
+            <div class="steps">
+                <div class="step-dot active"></div>
+                <div class="step-dot"></div>
+                <div class="step-dot"></div>
+            </div>
+        </div>
+        <div class="bottom-nav">
+            <div class="nav-item active"><span class="nav-icon">🏠</span><span>Główna</span></div>
+            <div class="nav-item"><span class="nav-icon">📄</span><span>Dokumenty</span></div>
+            <div class="nav-item"><span class="nav-icon">🔔</span><span>Powiadomienia</span></div>
+        </div>
+    </div>
+
+    <!-- EKRAN 2: Przetwarzanie -->
+    <div class="screen-step" id="step2">
+        <div class="header header-red">
+            <div class="header-logo">mObywatel</div>
+            <div class="header-icons">
+                <svg class="header-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                <svg class="header-icon" viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+            </div>
+        </div>
+        <div class="status-date">Przetwarzanie...</div>
+        <div class="content">
+            <div class="card">
+                <div class="lock-container">
+                    <div class="lock-icon">⏳</div>
+                    <div class="lock-text" id="processingText">Zaślepiam token...</div>
+                    <div class="lock-subtext" id="processingSubtext">Generowanie losowego czynnika zaślepiającego</div>
+                </div>
+            </div>
+            <div class="section-title">Dziennik kryptograficzny</div>
+            <div id="cryptoLog"></div>
+            <div class="steps">
+                <div class="step-dot done"></div>
+                <div class="step-dot active"></div>
+                <div class="step-dot"></div>
+            </div>
+        </div>
+        <div class="bottom-nav">
+            <div class="nav-item active"><span class="nav-icon">🏠</span><span>Główna</span></div>
+            <div class="nav-item"><span class="nav-icon">📄</span><span>Dokumenty</span></div>
+            <div class="nav-item"><span class="nav-icon">🔔</span><span>Powiadomienia</span></div>
+        </div>
+    </div>
+
+    <!-- EKRAN 3: Kod wygenerowany -->
+    <div class="screen-step" id="step3">
+        <div class="header header-green">
+            <div class="header-logo">mObywatel</div>
+            <div class="header-icons">
+                <svg class="header-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                <svg class="header-icon" viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+            </div>
+        </div>
+        <div class="status-date">Kod aktywny</div>
+        <div class="content">
+            <div class="card">
+                <div class="lock-container">
+                    <div class="lock-icon">🛡️</div>
+                    <div class="lock-text">Wiek zweryfikowany anonimowo</div>
+                    <div class="lock-subtext">Żaden podmiot nie zna Twojej tożsamości i kodu jednocześnie</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="code-display">
+                    <div class="code-label">Twój jednorazowy kod</div>
+                    <div class="code-number" id="codeDisplay">--- ---</div>
+                    <div class="code-timer" id="codeTimer">
+                        <span>⏱️</span>
+                        <span id="timerText">5:00</span>
+                    </div>
+                    <div class="timer-bar">
+                        <div class="timer-fill fill-ok" id="timerFill" style="width:100%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="info-row">
+                    <span class="info-label">Użycia</span>
+                    <span class="info-value" id="usageStatus">Jednorazowy</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Czas życia</span>
+                    <span class="info-value">5 minut</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Strona widzi</span>
+                    <span class="info-value">Tylko kod</span>
+                </div>
+                <button class="btn btn-green" id="btnCopy">Kopiuj kod</button>
+            </div>
+
+            <button class="btn btn-primary" id="btnNewCode" style="margin-top:4px">Generuj nowy kod</button>
+
+            <div class="steps">
+                <div class="step-dot done"></div>
+                <div class="step-dot done"></div>
+                <div class="step-dot active"></div>
+            </div>
+        </div>
+        <div class="bottom-nav">
+            <div class="nav-item active"><span class="nav-icon">🏠</span><span>Główna</span></div>
+            <div class="nav-item"><span class="nav-icon">📄</span><span>Dokumenty</span></div>
+            <div class="nav-item"><span class="nav-icon">🔔</span><span>Powiadomienia</span></div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== STRONA 18+ ===================== -->
+<div class="site-frame">
+    <div class="browser-bar">
+        <div class="browser-dots">
+            <div class="browser-dot dot-red"></div>
+            <div class="browser-dot dot-yellow"></div>
+            <div class="browser-dot dot-green"></div>
+        </div>
+        <div class="browser-url">
+            <span class="lock">🔒</span> https://example-adult.pl/weryfikacja
+        </div>
+    </div>
+    <div class="site-content">
+        <div class="site-logo">🔞</div>
+        <div class="site-title">Weryfikacja wieku</div>
+        <div class="site-subtitle">Wpisz 6-cyfrowy kod z aplikacji mObywatel</div>
+
+        <div class="site-card">
+            <div class="site-card-title">Kod weryfikacyjny</div>
+            <input
+                type="text"
+                class="site-input"
+                id="siteCodeInput"
+                maxlength="6"
+                placeholder="------"
+                inputmode="numeric"
+                pattern="[0-9]*"
+            >
+            <button class="site-btn" id="btnVerify" disabled>Zweryfikuj wiek</button>
+        </div>
+
+        <div id="siteResult"></div>
+
+        <div class="site-info">
+            <strong>Prywatność:</strong> Ta strona otrzymuje wyłącznie odpowiedź TAK/NIE.<br>
+            Nie znamy Twojego imienia, PESELu ani żadnych danych osobowych.
+        </div>
+    </div>
+</div>
+
+<script>
+// ============ STAN APLIKACJI ============
+const state = {
+    currentCode: null,
+    codeExpiry: null,
+    codeUsed: false,
+    timerInterval: null,
+    activeCodes: {} // symulacja bazy Rządu B
+};
+
+// ============ NAWIGACJA EKRANÓW ============
+function showStep(stepId) {
+    document.querySelectorAll('.screen-step').forEach(s => s.classList.remove('active'));
+    document.getElementById(stepId).classList.add('active');
+}
+
+// ============ GENEROWANIE KODU ============
+function generateCode() {
+    return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function formatCode(code) {
+    return code.slice(0, 3) + ' ' + code.slice(3);
+}
+
+// ============ SYMULACJA KRYPTOGRAFII ============
+function randomHex(len) {
+    return '0x' + Array.from({length: len}, () =>
+        Math.floor(Math.random() * 16).toString(16)
+    ).join('');
+}
+
+async function runCryptoAnimation() {
+    showStep('step2');
+    const log = document.getElementById('cryptoLog');
+    const text = document.getElementById('processingText');
+    const sub = document.getElementById('processingSubtext');
+    log.innerHTML = '';
+
+    const steps = [
+        {
+            text: 'Zaślepiam token...',
+            sub: 'Generowanie losowego czynnika zaślepiającego r',
+            log: `<strong>Użytkownik:</strong> Token wygenerowany<br>Hash: ${randomHex(16)}...`
+        },
+        {
+            text: 'Zaślepiam token...',
+            sub: 'Obliczam: zaslepiony = token × r^e mod n',
+            log: `<strong>Użytkownik:</strong> Token zaślepiony<br>Rząd A zobaczy: ${randomHex(16)}... <em>(losowy szum)</em>`
+        },
+        {
+            text: 'Wysyłam do Rządu A...',
+            sub: 'PESEL + zaślepiony token → mObywatel',
+            log: `<strong>Rząd A:</strong> Weryfikacja PESEL → wiek 31 lat ✓<br>Podpisuję zaślepiony token (nie wiem co to jest!)`
+        },
+        {
+            text: 'Odślepiam podpis...',
+            sub: 'podpis = slepy_podpis × r⁻¹ mod n',
+            log: `<strong>Użytkownik:</strong> Podpis odślepiony ✓<br>Mam ważny podpis na tokenie, którego Rząd A nigdy nie widział!`
+        },
+        {
+            text: 'Wysyłam do Rządu B...',
+            sub: 'Anonimowy token + podpis Rządu A → NASK',
+            log: `<strong>Rząd B:</strong> Podpis Rządu A ważny ✓<br>Ktoś anonimowy ma 18+ — nie wiem kto`
+        },
+        {
+            text: 'Przetwarzam OPRF...',
+            sub: 'Serwer oblicza na zaślepionych danych',
+            log: `<strong>Rząd B:</strong> OPRF przetworzono<br>Wejście: ${randomHex(12)}... Wyjście: ${randomHex(12)}... <em>(oba to szum)</em>`
+        },
+        {
+            text: 'Generuję kod...',
+            sub: 'Kod 6-cyfrowy z TTL 5 minut',
+            log: null // dodamy po wygenerowaniu kodu
+        },
+    ];
+
+    for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        text.textContent = step.text;
+        sub.textContent = step.sub;
+
+        if (i === steps.length - 1) {
+            // Generuj prawdziwy kod
+            const code = generateCode();
+            state.currentCode = code;
+            state.codeExpiry = Date.now() + 300000; // 5 minut
+            state.codeUsed = false;
+            state.activeCodes[code] = {
+                expiry: state.codeExpiry,
+                used: false
+            };
+
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `<strong>Rząd B:</strong> Wygenerowano kod <strong>${formatCode(code)}</strong><br>Tożsamość: NIEZNANA (ślepy podpis uniemożliwia identyfikację)`;
+            log.appendChild(entry);
+        } else if (step.log) {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = step.log;
+            log.appendChild(entry);
+        }
+
+        await sleep(600 + Math.random() * 400);
+    }
+
+    await sleep(500);
+
+    // Przejdź do ekranu kodu
+    document.getElementById('codeDisplay').textContent = formatCode(state.currentCode);
+    document.getElementById('usageStatus').textContent = 'Jednorazowy';
+    document.getElementById('usageStatus').style.color = '';
+    startTimer();
+    showStep('step3');
+}
+
+// ============ TIMER ============
+function startTimer() {
+    if (state.timerInterval) clearInterval(state.timerInterval);
+
+    state.timerInterval = setInterval(() => {
+        const remaining = Math.max(0, state.codeExpiry - Date.now());
+        const totalMs = 300000;
+        const pct = (remaining / totalMs) * 100;
+        const seconds = Math.ceil(remaining / 1000);
+        const min = Math.floor(seconds / 60);
+        const sec = seconds % 60;
+
+        const timerText = document.getElementById('timerText');
+        const timerFill = document.getElementById('timerFill');
+
+        timerText.textContent = `${min}:${String(sec).padStart(2, '0')}`;
+        timerFill.style.width = pct + '%';
+
+        // Kolory w zależności od czasu
+        const timerDiv = document.getElementById('codeTimer');
+        timerFill.className = 'timer-fill';
+
+        if (pct > 40) {
+            timerDiv.className = 'code-timer timer-ok';
+            timerFill.classList.add('fill-ok');
+        } else if (pct > 15) {
+            timerDiv.className = 'code-timer timer-warn';
+            timerFill.classList.add('fill-warn');
+        } else {
+            timerDiv.className = 'code-timer timer-danger';
+            timerFill.classList.add('fill-danger');
+        }
+
+        if (remaining <= 0) {
+            clearInterval(state.timerInterval);
+            timerText.textContent = 'WYGASŁ';
+            document.getElementById('codeDisplay').style.opacity = '0.3';
+
+            // Usuń kod z bazy
+            if (state.currentCode && state.activeCodes[state.currentCode]) {
+                delete state.activeCodes[state.currentCode];
+            }
+        }
+    }, 200);
+}
+
+// ============ KOPIOWANIE ============
+document.getElementById('btnCopy').addEventListener('click', function() {
+    if (state.currentCode && !state.codeUsed && Date.now() < state.codeExpiry) {
+        navigator.clipboard.writeText(state.currentCode).catch(() => {});
+        this.textContent = 'Skopiowano! ✓';
+        this.style.background = '#1b5e20';
+        setTimeout(() => {
+            this.textContent = 'Kopiuj kod';
+            this.style.background = '';
+        }, 2000);
+    }
+});
+
+// ============ STRONA 18+ ============
+const siteInput = document.getElementById('siteCodeInput');
+const btnVerify = document.getElementById('btnVerify');
+
+siteInput.addEventListener('input', function() {
+    this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);
+    btnVerify.disabled = this.value.length !== 6;
+});
+
+btnVerify.addEventListener('click', function() {
+    const code = siteInput.value;
+    const resultDiv = document.getElementById('siteResult');
+
+    // Sprawdź w "bazie" Rządu B
+    const entry = state.activeCodes[code];
+
+    if (!entry) {
+        resultDiv.innerHTML = `
+            <div class="site-result result-fail">
+                <div class="result-icon">✗</div>
+                <div class="result-text">Kod nieważny</div>
+                <div class="result-sub">Kod nie istnieje lub wygasł</div>
+            </div>
+            <button class="site-reset" onclick="resetSite()">Spróbuj ponownie</button>
+        `;
+        return;
+    }
+
+    if (entry.used) {
+        resultDiv.innerHTML = `
+            <div class="site-result result-fail">
+                <div class="result-icon">✗</div>
+                <div class="result-text">Kod już użyty</div>
+                <div class="result-sub">Kody są jednorazowe — wygeneruj nowy w mObywatel</div>
+            </div>
+            <button class="site-reset" onclick="resetSite()">Spróbuj ponownie</button>
+        `;
+        return;
+    }
+
+    if (Date.now() > entry.expiry) {
+        delete state.activeCodes[code];
+        resultDiv.innerHTML = `
+            <div class="site-result result-fail">
+                <div class="result-icon">⏰</div>
+                <div class="result-text">Kod wygasł</div>
+                <div class="result-sub">Minęło 5 minut — wygeneruj nowy kod</div>
+            </div>
+            <button class="site-reset" onclick="resetSite()">Spróbuj ponownie</button>
+        `;
+        return;
+    }
+
+    // Sukces! Spalamy kod
+    entry.used = true;
+    state.codeUsed = true;
+
+    // Aktualizuj status na telefonie
+    const usageEl = document.getElementById('usageStatus');
+    if (usageEl) {
+        usageEl.textContent = 'Wykorzystany ✓';
+        usageEl.style.color = '#c41e3a';
+    }
+
+    resultDiv.innerHTML = `
+        <div class="site-result result-success">
+            <div class="result-icon">✓</div>
+            <div class="result-text">Wiek zweryfikowany!</div>
+            <div class="result-sub">Dostęp przyznany. Nie znamy Twojej tożsamości.</div>
+        </div>
+        <button class="site-reset" onclick="resetSite()">Zweryfikuj kolejny kod</button>
+    `;
+
+    siteInput.disabled = true;
+    btnVerify.disabled = true;
+});
+
+function resetSite() {
+    siteInput.value = '';
+    siteInput.disabled = false;
+    btnVerify.disabled = true;
+    document.getElementById('siteResult').innerHTML = '';
+}
+
+// ============ PRZYCISKI ============
+document.getElementById('btnGenerate').addEventListener('click', () => {
+    runCryptoAnimation();
+});
+
+document.getElementById('btnNewCode').addEventListener('click', () => {
+    // Usuń stary kod
+    if (state.currentCode && state.activeCodes[state.currentCode]) {
+        delete state.activeCodes[state.currentCode];
+    }
+    if (state.timerInterval) clearInterval(state.timerInterval);
+
+    document.getElementById('codeDisplay').style.opacity = '1';
+    resetSite();
+    runCryptoAnimation();
+});
+
+// ============ UTILITY ============
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+</script>
+
+</body>
+</html>
