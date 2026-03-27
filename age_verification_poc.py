@@ -1,7 +1,7 @@
 """
 ══════════════════════════════════════════════════════════════════════
-  PROOF OF CONCEPT: Anonimowa Weryfikacja Wieku
-  Blind RSA Signatures + Oblivious PRF + Krótki Kod
+  DOWÓD KONCEPCJI: Anonimowa Weryfikacja Wieku
+  Ślepe Podpisy RSA + Nieświadoma Funkcja Pseudolosowa + Krótki Kod
 ══════════════════════════════════════════════════════════════════════
 Architektura trójstronna (wszystko rządowe, ale kryptograficznie rozdzielone):
   ┌─────────────┐     ślepy podpis      ┌─────────────┐
@@ -25,7 +25,7 @@ Gwarancje prywatności:
   • Rząd A:  zna tożsamość, NIE zna kodu ani strony docelowej
   • Rząd B:  zna kod, NIE zna tożsamości (matematycznie niemożliwe)
   • Strona:  zna kod, NIE zna tożsamości ani źródła
-  • Korelacja czasowa: neutralizowana przez batch prefetch tokenów
+  • Korelacja czasowa: neutralizowana przez grupowe pobieranie tokenów z wyprzedzeniem
 """
 import hashlib
 import secrets
@@ -38,38 +38,38 @@ from dataclasses import dataclass, field
 # CZĘŚĆ 1: Prymitywy kryptograficzne
 # ════════════════════════════════════════════════════════════════════
 
-class RSAKeyPair:
-    """Uproszczone RSA do demonstracji blind signatures.
+class ParaKluczyRSA:
+    """Uproszczone RSA do demonstracji ślepych podpisów.
 
     W produkcji: użyj RSA-PSS z biblioteką typu `cryptography`.
     Tu: ręczna implementacja dla przejrzystości matematyki.
     """
 
-    def __init__(self, bits=512):
+    def __init__(self, bity=512):
         # UWAGA: 512 bitów to ZA MAŁO na produkcję (min. 2048)
         # Tu używamy małych kluczy dla szybkości demo
-        self.p = self._generate_prime(bits // 2)
-        self.q = self._generate_prime(bits // 2)
+        self.p = self._generuj_liczbe_pierwsza(bity // 2)
+        self.q = self._generuj_liczbe_pierwsza(bity // 2)
         self.n = self.p * self.q
         self.phi = (self.p - 1) * (self.q - 1)
         self.e = 65537
         self.d = pow(self.e, -1, self.phi)
 
-    def _generate_prime(self, bits):
-        """Generuje prawdopodobny prime (Miller-Rabin wystarczy na demo)."""
+    def _generuj_liczbe_pierwsza(self, bity):
+        """Generuje prawdopodobną liczbę pierwszą (Miller-Rabin wystarczy na demo)."""
         while True:
-            n = secrets.randbits(bits) | (1 << bits - 1) | 1
-            if self._is_probable_prime(n):
+            n = secrets.randbits(bity) | (1 << bity - 1) | 1
+            if self._czy_prawdopodobnie_pierwsza(n):
                 return n
 
-    def _is_probable_prime(self, n, rounds=20):
+    def _czy_prawdopodobnie_pierwsza(self, n, rundy=20):
         if n < 2: return False
         if n % 2 == 0: return n == 2
         d, r = n - 1, 0
         while d % 2 == 0:
             d //= 2
             r += 1
-        for _ in range(rounds):
+        for _ in range(rundy):
             a = secrets.randbelow(n - 3) + 2
             x = pow(a, d, n)
             if x == 1 or x == n - 1:
@@ -83,8 +83,8 @@ class RSAKeyPair:
         return True
 
 
-class BlindRSA:
-    """Blind RSA Signature (schemat Chauma, 1983).
+class SlepyRSA:
+    """Ślepy Podpis RSA (schemat Chauma, 1983).
 
     Idea: użytkownik "zaślepia" wiadomość losowym czynnikiem,
     serwer podpisuje zaślepioną wiadomość, użytkownik "odślepia"
@@ -92,62 +92,62 @@ class BlindRSA:
     oryginalnej wiadomości.
 
     Matematyka:
-      1. Użytkownik: blinded = m * r^e mod n     (zaślepienie)
-      2. Serwer:     blind_sig = blinded^d mod n  (podpis ślepego)
-      3. Użytkownik: sig = blind_sig / r mod n    (odślepienie)
-      4. Weryfikacja: sig^e mod n == m             (standardowe RSA)
+      1. Użytkownik: zaslepiona = m * r^e mod n     (zaślepienie)
+      2. Serwer:     slepy_podpis = zaslepiona^d mod n  (podpis ślepego)
+      3. Użytkownik: podpis = slepy_podpis / r mod n    (odślepienie)
+      4. Weryfikacja: podpis^e mod n == m             (standardowe RSA)
 
-    Serwer widział tylko `blinded` — losowy szum, z którego
+    Serwer widział tylko `zaslepiona` — losowy szum, z którego
     NIE DA SIĘ odzyskać `m` bez znajomości `r`.
     """
 
     @staticmethod
-    def blind(message_hash: int, pubkey_e: int, pubkey_n: int) -> tuple:
+    def zaslep(hash_wiadomosci: int, klucz_publiczny_e: int, klucz_publiczny_n: int) -> tuple:
         """Użytkownik zaślepia wiadomość przed wysłaniem do podpisu.
 
-        Returns: (blinded_message, blinding_factor_r)
+        Zwraca: (zaslepiona_wiadomosc, czynnik_zaslepiajacy_r)
         """
         while True:
-            r = secrets.randbelow(pubkey_n - 2) + 2
+            r = secrets.randbelow(klucz_publiczny_n - 2) + 2
             # r musi być odwracalne mod n
             try:
-                r_inv = pow(r, -1, pubkey_n)
+                r_odw = pow(r, -1, klucz_publiczny_n)
                 break
             except ValueError:
                 continue
 
-        # blinded = m * r^e mod n
-        r_to_e = pow(r, pubkey_e, pubkey_n)
-        blinded = (message_hash * r_to_e) % pubkey_n
+        # zaslepiona = m * r^e mod n
+        r_do_e = pow(r, klucz_publiczny_e, klucz_publiczny_n)
+        zaslepiona = (hash_wiadomosci * r_do_e) % klucz_publiczny_n
 
-        return blinded, r
+        return zaslepiona, r
 
     @staticmethod
-    def sign_blind(blinded_message: int, privkey_d: int, n: int) -> int:
+    def podpisz_slepo(zaslepiona_wiadomosc: int, klucz_prywatny_d: int, n: int) -> int:
         """Serwer (Rząd A) podpisuje zaślepioną wiadomość.
 
         Serwer NIE WIE co podpisuje — widzi losowy szum.
         """
-        return pow(blinded_message, privkey_d, n)
+        return pow(zaslepiona_wiadomosc, klucz_prywatny_d, n)
 
     @staticmethod
-    def unblind(blind_signature: int, r: int, n: int) -> int:
+    def odslep(slepy_podpis: int, r: int, n: int) -> int:
         """Użytkownik odślepia podpis.
 
         Wynik: ważny podpis RSA na oryginalnej wiadomości,
         którego serwer nigdy nie widział.
         """
-        r_inv = pow(r, -1, n)
-        return (blind_signature * r_inv) % n
+        r_odw = pow(r, -1, n)
+        return (slepy_podpis * r_odw) % n
 
     @staticmethod
-    def verify(message_hash: int, signature: int, pubkey_e: int, n: int) -> bool:
+    def zweryfikuj(hash_wiadomosci: int, podpis: int, klucz_publiczny_e: int, n: int) -> bool:
         """Standardowa weryfikacja RSA — działa na odślepionym podpisie!"""
-        return pow(signature, pubkey_e, n) == message_hash
+        return pow(podpis, klucz_publiczny_e, n) == hash_wiadomosci
 
 
-class OPRF:
-    """Oblivious Pseudorandom Function (OPRF).
+class NieswiadomaFunkcjaPRF:
+    """Nieświadoma Funkcja Pseudolosowa (OPRF).
 
     Serwer (Rząd B) przetwarza dane użytkownika swoim kluczem,
     ale NIGDY NIE WIDZI ani danych wejściowych, ani wyniku.
@@ -157,42 +157,42 @@ class OPRF:
       F(k, x) = H(x)^k mod p
 
     Ale serwer nigdy nie widzi H(x) ani F(k, x):
-      1. Klient: h = H(x), losuje r, wysyła blinded = h^r mod p
-      2. Serwer: zwraca evaluated = blinded^k mod p = h^(r*k) mod p
-      3. Klient: odślepia = evaluated^(1/r) mod p = h^k mod p = F(k,x)
+      1. Klient: h = H(x), losuje r, wysyła zaslepione = h^r mod p
+      2. Serwer: zwraca wynik = zaslepione^k mod p = h^(r*k) mod p
+      3. Klient: odślepia = wynik^(1/r) mod p = h^k mod p = F(k,x)
 
     Serwer widział tylko h^r — losowy element grupy.
     """
 
-    def __init__(self, bits=512):
-        # Generujemy bezpieczną grupę (p = 2q + 1, safe prime)
+    def __init__(self, bity=512):
+        # Generujemy bezpieczną grupę (p = 2q + 1, bezpieczna liczba pierwsza)
         # W produkcji: użyj standardowej krzywej EC (P-256, ristretto255)
-        self.q = self._find_prime(bits - 1)
+        self.q = self._znajdz_pierwsza(bity - 1)
         self.p = 2 * self.q + 1
-        while not self._is_prime(self.p):
-            self.q = self._find_prime(bits - 1)
+        while not self._czy_pierwsza(self.p):
+            self.q = self._znajdz_pierwsza(bity - 1)
             self.p = 2 * self.q + 1
 
         # Generator podgrupy rzędu q
-        self.g = self._find_generator()
+        self.g = self._znajdz_generator()
 
         # Sekretny klucz serwera
-        self.server_key = secrets.randbelow(self.q - 1) + 1
+        self.klucz_serwera = secrets.randbelow(self.q - 1) + 1
 
-    def _find_prime(self, bits):
+    def _znajdz_pierwsza(self, bity):
         while True:
-            n = secrets.randbits(bits) | (1 << bits - 1) | 1
-            if self._is_prime(n):
+            n = secrets.randbits(bity) | (1 << bity - 1) | 1
+            if self._czy_pierwsza(n):
                 return n
 
-    def _is_prime(self, n, rounds=20):
+    def _czy_pierwsza(self, n, rundy=20):
         if n < 2: return False
         if n % 2 == 0: return n == 2
         d, r = n - 1, 0
         while d % 2 == 0:
             d //= 2
             r += 1
-        for _ in range(rounds):
+        for _ in range(rundy):
             a = secrets.randbelow(n - 3) + 2
             x = pow(a, d, n)
             if x == 1 or x == n - 1: continue
@@ -203,7 +203,7 @@ class OPRF:
                 return False
         return True
 
-    def _find_generator(self):
+    def _znajdz_generator(self):
         """Znajduje generator podgrupy rzędu q w Z*_p."""
         while True:
             h = secrets.randbelow(self.p - 2) + 2
@@ -211,57 +211,57 @@ class OPRF:
             if g != 1:
                 return g
 
-    def hash_to_group(self, data: bytes) -> int:
-        """Mapuje arbitrarne dane na element grupy."""
-        h = int.from_bytes(hashlib.sha512(data).digest(), 'big')
+    def hashuj_do_grupy(self, dane: bytes) -> int:
+        """Mapuje arbitralne dane na element grupy."""
+        h = int.from_bytes(hashlib.sha512(dane).digest(), 'big')
         return pow(self.g, h % self.q, self.p)
 
     # --- Strona klienta ---
 
-    def client_blind(self, input_data: bytes) -> tuple:
+    def klient_zaslep(self, dane_wejsciowe: bytes) -> tuple:
         """Klient zaślepia swoje dane przed wysłaniem do serwera.
 
-        Returns: (blinded_element, blinding_factor, original_hash)
+        Zwraca: (zaslepiony_element, czynnik_zaslepiajacy, oryginalny_hash)
         """
-        h = self.hash_to_group(input_data)
+        h = self.hashuj_do_grupy(dane_wejsciowe)
         r = secrets.randbelow(self.q - 1) + 1  # losowy czynnik zaślepiający
 
-        # blinded = h^r mod p — serwer nie może odzyskać h
-        blinded = pow(h, r, self.p)
+        # zaslepione = h^r mod p — serwer nie może odzyskać h
+        zaslepione = pow(h, r, self.p)
 
-        return blinded, r, h
+        return zaslepione, r, h
 
     # --- Strona serwera ---
 
-    def server_evaluate(self, blinded: int) -> int:
+    def serwer_oblicz(self, zaslepione: int) -> int:
         """Serwer (Rząd B) przetwarza zaślepione dane swoim kluczem.
 
         Serwer NIE WIE co przetwarza — widzi losowy element grupy.
-        Zwraca: blinded^k mod p
+        Zwraca: zaslepione^k mod p
         """
-        return pow(blinded, self.server_key, self.p)
+        return pow(zaslepione, self.klucz_serwera, self.p)
 
     # --- Strona klienta ---
 
-    def client_unblind(self, evaluated: int, r: int) -> int:
+    def klient_odslep(self, obliczone: int, r: int) -> int:
         """Klient odślepia wynik serwera.
 
-        evaluated = h^(r*k) mod p
-        result = evaluated^(1/r) mod p = h^k mod p = F(k, input)
+        obliczone = h^(r*k) mod p
+        wynik = obliczone^(1/r) mod p = h^k mod p = F(k, wejście)
 
         To jest finalna wartość PRF, której serwer NIGDY nie widział.
         """
-        r_inv = pow(r, -1, self.q)
-        return pow(evaluated, r_inv, self.p)
+        r_odw = pow(r, -1, self.q)
+        return pow(obliczone, r_odw, self.p)
 
     # --- Weryfikacja (do testów) ---
 
-    def compute_directly(self, input_data: bytes) -> int:
+    def oblicz_bezposrednio(self, dane_wejsciowe: bytes) -> int:
         """Bezpośrednie obliczenie F(k, x) — tylko do testów!
         W prawdziwym systemie nikt nie ma dostępu do obu stron naraz.
         """
-        h = self.hash_to_group(input_data)
-        return pow(h, self.server_key, self.p)
+        h = self.hashuj_do_grupy(dane_wejsciowe)
+        return pow(h, self.klucz_serwera, self.p)
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -269,25 +269,25 @@ class OPRF:
 # ════════════════════════════════════════════════════════════════════
 
 @dataclass
-class GovA_AgeVerifier:
+class RzadA_WeryfikatorWieku:
     """RZĄD A — Weryfikator wieku (np. mObywatel).
 
     WIDZI: tożsamość użytkownika (PESEL, imię, wiek)
-    NIE WIDZI: tokenu który podpisuje (blind signature)
+    NIE WIDZI: tokenu który podpisuje (ślepy podpis)
     NIE WIE: na jakiej stronie użytkownik użyje kodu
     """
-    name: str = "mObywatel (Rząd A)"
-    rsa: RSAKeyPair = None
+    nazwa: str = "mObywatel (Rząd A)"
+    rsa: ParaKluczyRSA = None
 
-    # Audit log — w produkcji: legal retention z czasowym kasowaniem
-    log: list = field(default_factory=list)
+    # Dziennik audytu — w produkcji: przechowywanie prawne z czasowym kasowaniem
+    dziennik: list = field(default_factory=list)
 
     def __post_init__(self):
-        print(f"[{self.name}] Generuję klucze RSA do ślepych podpisów...")
-        self.rsa = RSAKeyPair(bits=512)
-        print(f"[{self.name}] Klucze gotowe. Klucz publiczny udostępniony.")
+        print(f"[{self.nazwa}] Generuję klucze RSA do ślepych podpisów...")
+        self.rsa = ParaKluczyRSA(bity=512)
+        print(f"[{self.nazwa}] Klucze gotowe. Klucz publiczny udostępniony.")
 
-    def verify_age_and_blind_sign(self, pesel: str, blinded_token: int) -> dict:
+    def zweryfikuj_wiek_i_podpisz_slepo(self, pesel: str, zaslepiony_token: int) -> dict:
         """Użytkownik prosi o podpis po weryfikacji wieku.
 
         Rząd A:
@@ -296,263 +296,263 @@ class GovA_AgeVerifier:
           3. Loguje: "użytkownik X poprosił o weryfikację" (ale NIE token)
         """
         # Symulacja weryfikacji wieku z PESEL
-        year = int(pesel[:2])
-        month = int(pesel[2:4])
-        if month > 20:
-            year += 2000
-            month -= 20
+        rok = int(pesel[:2])
+        miesiac = int(pesel[2:4])
+        if miesiac > 20:
+            rok += 2000
+            miesiac -= 20
         else:
-            year += 1900
+            rok += 1900
 
-        age = 2026 - year  # uproszczenie
-        is_adult = age >= 18
+        wiek = 2026 - rok  # uproszczenie
+        pelnoletni = wiek >= 18
 
-        print(f"\n[{self.name}] Weryfikacja wieku:")
+        print(f"\n[{self.nazwa}] Weryfikacja wieku:")
         print(f"  PESEL: {pesel[:6]}****{pesel[-1]}")
-        print(f"  Wiek: {age} lat")
-        print(f"  Pełnoletni: {'TAK ✓' if is_adult else 'NIE ✗'}")
+        print(f"  Wiek: {wiek} lat")
+        print(f"  Pełnoletni: {'TAK ✓' if pelnoletni else 'NIE ✗'}")
 
-        if not is_adult:
-            return {"success": False, "reason": "Osoba niepełnoletnia"}
+        if not pelnoletni:
+            return {"sukces": False, "powod": "Osoba niepełnoletnia"}
 
         # Podpisujemy ZAŚLEPIONY token — nie wiemy co to jest!
-        blind_signature = BlindRSA.sign_blind(
-            blinded_token, self.rsa.d, self.rsa.n
+        slepy_podpis = SlepyRSA.podpisz_slepo(
+            zaslepiony_token, self.rsa.d, self.rsa.n
         )
 
-        # Log: wiemy KTO poprosił, ale NIE wiemy o CO (token zaślepiony)
-        self.log.append({
-            "time": time.time(),
-            "pesel_hash": hashlib.sha256(pesel.encode()).hexdigest()[:16],
-            "action": "blind_sign",
-            "blinded_token_seen": hex(blinded_token)[:20] + "...",
+        # Dziennik: wiemy KTO poprosił, ale NIE wiemy o CO (token zaślepiony)
+        self.dziennik.append({
+            "czas": time.time(),
+            "hash_pesel": hashlib.sha256(pesel.encode()).hexdigest()[:16],
+            "akcja": "slepy_podpis",
+            "widziany_zaslepiony_token": hex(zaslepiony_token)[:20] + "...",
             # ↑ Ten hash to LOSOWY SZUM — nie da się z niego odzyskać tokenu
         })
 
         print(f"  Podpisano zaślepiony token (nie wiem co podpisałem!)")
-        print(f"  Widzę tylko losowy szum: {hex(blinded_token)[:24]}...")
+        print(f"  Widzę tylko losowy szum: {hex(zaslepiony_token)[:24]}...")
 
         return {
-            "success": True,
-            "blind_signature": blind_signature,
-            "pubkey_e": self.rsa.e,
-            "pubkey_n": self.rsa.n,
+            "sukces": True,
+            "slepy_podpis": slepy_podpis,
+            "klucz_publiczny_e": self.rsa.e,
+            "klucz_publiczny_n": self.rsa.n,
         }
 
 
 @dataclass
-class GovB_CodeIssuer:
+class RzadB_WydawcaKodow:
     """RZĄD B — Wydawca kodów (np. NASK).
 
     WIDZI: anonimowy token z ważnym podpisem Rządu A
     NIE WIDZI: tożsamości użytkownika (matematycznie niemożliwe)
     NIE WIE: kto stoi za danym tokenem
 
-    OPRF zapewnia, że nawet dane przechodzące przez serwer
-    są kryptograficznie zaślepione — serwer przetwarza dane
-    których nie widzi.
+    Nieświadoma Funkcja PRF zapewnia, że nawet dane przechodzące
+    przez serwer są kryptograficznie zaślepione — serwer przetwarza
+    dane których nie widzi.
     """
-    name: str = "NASK (Rząd B)"
-    oprf: OPRF = None
+    nazwa: str = "NASK (Rząd B)"
+    oprf: NieswiadomaFunkcjaPRF = None
 
-    # Baza aktywnych kodów: {kod: {token_hash, expires}}
-    active_codes: dict = field(default_factory=dict)
+    # Baza aktywnych kodów: {kod: {odcisk_tokenu, wygasa}}
+    aktywne_kody: dict = field(default_factory=dict)
 
-    # Audit log
-    log: list = field(default_factory=list)
+    # Dziennik audytu
+    dziennik: list = field(default_factory=list)
 
     def __post_init__(self):
-        print(f"[{self.name}] Inicjalizuję parametry OPRF...")
-        self.oprf = OPRF(bits=256)
-        print(f"[{self.name}] OPRF gotowy. Parametry publiczne udostępnione.")
+        print(f"[{self.nazwa}] Inicjalizuję parametry Nieświadomej Funkcji PRF...")
+        self.oprf = NieswiadomaFunkcjaPRF(bity=256)
+        print(f"[{self.nazwa}] Funkcja PRF gotowa. Parametry publiczne udostępnione.")
 
-    def process_oprf_and_issue_code(
+    def przetworz_oprf_i_wydaj_kod(
         self,
-        blinded_oprf_input: int,
-        token_hash: int,
-        token_signature: int,
-        gov_a_pubkey_e: int,
-        gov_a_pubkey_n: int,
+        zaslepione_dane_oprf: int,
+        hash_tokenu: int,
+        podpis_tokenu: int,
+        klucz_rzadu_a_e: int,
+        klucz_rzadu_a_n: int,
     ) -> dict:
         """Przetwarza żądanie wydania kodu.
 
         1. Weryfikuje podpis Rządu A (czy wiek był sprawdzony)
-        2. Przetwarza OPRF na zaślepionych danych (nie widzi treści)
-        3. Generuje 6-cyfrowy kod z TTL 5 minut
+        2. Przetwarza PRF na zaślepionych danych (nie widzi treści)
+        3. Generuje 6-cyfrowy kod z czasem życia 5 minut
         """
-        print(f"\n[{self.name}] Otrzymano żądanie wydania kodu:")
+        print(f"\n[{self.nazwa}] Otrzymano żądanie wydania kodu:")
 
         # Krok 1: Weryfikacja podpisu Rządu A
-        sig_valid = BlindRSA.verify(
-            token_hash, token_signature, gov_a_pubkey_e, gov_a_pubkey_n
+        podpis_wazny = SlepyRSA.zweryfikuj(
+            hash_tokenu, podpis_tokenu, klucz_rzadu_a_e, klucz_rzadu_a_n
         )
 
-        print(f"  Podpis Rządu A: {'WAŻNY ✓' if sig_valid else 'NIEWAŻNY ✗'}")
+        print(f"  Podpis Rządu A: {'WAŻNY ✓' if podpis_wazny else 'NIEWAŻNY ✗'}")
 
-        if not sig_valid:
-            return {"success": False, "reason": "Nieważny podpis weryfikacji wieku"}
+        if not podpis_wazny:
+            return {"sukces": False, "powod": "Nieważny podpis weryfikacji wieku"}
 
-        # Krok 2: OPRF — przetwarzam zaślepione dane
+        # Krok 2: PRF — przetwarzam zaślepione dane
         # NIE WIEM co to za dane! Widzę tylko losowy element grupy.
-        oprf_evaluated = self.oprf.server_evaluate(blinded_oprf_input)
+        wynik_oprf = self.oprf.serwer_oblicz(zaslepione_dane_oprf)
 
-        print(f"  OPRF: przetworzono zaślepione dane")
-        print(f"  Widzę na wejściu: {hex(blinded_oprf_input)[:24]}... (losowy szum)")
-        print(f"  Zwracam wynik:    {hex(oprf_evaluated)[:24]}... (też losowy szum)")
+        print(f"  PRF: przetworzono zaślepione dane")
+        print(f"  Widzę na wejściu: {hex(zaslepione_dane_oprf)[:24]}... (losowy szum)")
+        print(f"  Zwracam wynik:    {hex(wynik_oprf)[:24]}... (też losowy szum)")
 
         # Krok 3: Generuję 6-cyfrowy kod
-        code = f"{secrets.randbelow(900000) + 100000}"
-        expires = time.time() + 300  # 5 minut TTL
+        kod = f"{secrets.randbelow(900000) + 100000}"
+        wygasa = time.time() + 300  # 5 minut czasu życia
 
         # Zapisuję kod z hashem tokenu (NIE z tożsamością!)
         # Hash tokenu pozwala na jednorazowe użycie
-        self.active_codes[code] = {
-            "token_fingerprint": hashlib.sha256(
-                str(token_hash).encode()
+        self.aktywne_kody[kod] = {
+            "odcisk_tokenu": hashlib.sha256(
+                str(hash_tokenu).encode()
             ).hexdigest()[:16],
-            "expires": expires,
-            "used": False,
+            "wygasa": wygasa,
+            "uzyty": False,
         }
 
-        print(f"  Wygenerowano kod: {code} (TTL: 5 min)")
+        print(f"  Wygenerowano kod: {kod} (czas życia: 5 min)")
 
-        # Log: wiemy ŻE wydano kod, ale NIE wiemy KOMU
-        self.log.append({
-            "time": time.time(),
-            "action": "code_issued",
-            "code_hash": hashlib.sha256(code.encode()).hexdigest()[:16],
-            "identity": "NIEZNANA — blind signature uniemożliwia identyfikację",
+        # Dziennik: wiemy ŻE wydano kod, ale NIE wiemy KOMU
+        self.dziennik.append({
+            "czas": time.time(),
+            "akcja": "wydano_kod",
+            "hash_kodu": hashlib.sha256(kod.encode()).hexdigest()[:16],
+            "tozsamosc": "NIEZNANA — ślepy podpis uniemożliwia identyfikację",
         })
 
         return {
-            "success": True,
-            "code": code,
-            "oprf_evaluated": oprf_evaluated,
-            "expires_in_seconds": 300,
+            "sukces": True,
+            "kod": kod,
+            "wynik_oprf": wynik_oprf,
+            "wygasa_za_sekund": 300,
         }
 
-    def verify_code(self, code: str) -> dict:
+    def zweryfikuj_kod(self, kod: str) -> dict:
         """Strona 18+ odpytuje: czy ten kod jest ważny?
 
         Odpowiedź: TAK/NIE. Kod jest jednorazowy — po weryfikacji spalony.
         """
-        print(f"\n[{self.name}] Weryfikacja kodu od strony 18+:")
-        print(f"  Kod: {code}")
+        print(f"\n[{self.nazwa}] Weryfikacja kodu od strony 18+:")
+        print(f"  Kod: {kod}")
 
-        if code not in self.active_codes:
+        if kod not in self.aktywne_kody:
             print(f"  Wynik: NIEZNANY KOD ✗")
-            return {"valid": False, "reason": "Kod nie istnieje"}
+            return {"wazny": False, "powod": "Kod nie istnieje"}
 
-        entry = self.active_codes[code]
+        wpis = self.aktywne_kody[kod]
 
-        if entry["used"]:
+        if wpis["uzyty"]:
             print(f"  Wynik: KOD JUŻ UŻYTY ✗")
-            return {"valid": False, "reason": "Kod już wykorzystany"}
+            return {"wazny": False, "powod": "Kod już wykorzystany"}
 
-        if time.time() > entry["expires"]:
+        if time.time() > wpis["wygasa"]:
             print(f"  Wynik: KOD WYGASŁ ✗")
-            del self.active_codes[code]
-            return {"valid": False, "reason": "Kod wygasł"}
+            del self.aktywne_kody[kod]
+            return {"wazny": False, "powod": "Kod wygasł"}
 
         # Kod ważny — spalamy go (jednorazowy)
-        entry["used"] = True
+        wpis["uzyty"] = True
         print(f"  Wynik: KOD WAŻNY ✓ (spalony po użyciu)")
 
-        return {"valid": True, "age_verified": True}
+        return {"wazny": True, "wiek_zweryfikowany": True}
 
 
 @dataclass
-class User:
+class Uzytkownik:
     """UŻYTKOWNIK — łączy oba systemy, ale zachowuje anonimowość.
 
     Jako jedyny widzi pełny obraz, ale żaden z serwerów nie może
     zrekonstruować tego co widzi użytkownik.
     """
     pesel: str
-    name: str
+    imie: str
 
-    def request_blind_signature(self, gov_a: GovA_AgeVerifier) -> dict:
-        """Krok 1: Prosię Rząd A o ślepy podpis (weryfikacja wieku)."""
+    def popros_o_slepy_podpis(self, rzad_a: RzadA_WeryfikatorWieku) -> dict:
+        """Krok 1: Proszę Rząd A o ślepy podpis (weryfikacja wieku)."""
 
         print(f"\n{'='*60}")
-        print(f"UŻYTKOWNIK: {self.name}")
+        print(f"UŻYTKOWNIK: {self.imie}")
         print(f"{'='*60}")
         print(f"\n[Użytkownik] Generuję losowy token i zaślepiam go...")
 
         # Generuję losowy token — to będzie mój anonimowy bilet
-        self.token = secrets.randbelow(gov_a.rsa.n - 2) + 2
-        self.token_hash = int.from_bytes(
+        self.token = secrets.randbelow(rzad_a.rsa.n - 2) + 2
+        self.hash_tokenu = int.from_bytes(
             hashlib.sha256(str(self.token).encode()).digest(), 'big'
-        ) % gov_a.rsa.n
+        ) % rzad_a.rsa.n
 
         # Zaślepiam token — Rząd A nie zobaczy oryginału
-        self.blinded_token, self.blind_r = BlindRSA.blind(
-            self.token_hash, gov_a.rsa.e, gov_a.rsa.n
+        self.zaslepiony_token, self.czynnik_r = SlepyRSA.zaslep(
+            self.hash_tokenu, rzad_a.rsa.e, rzad_a.rsa.n
         )
 
         print(f"  Mój token (sekretny):        {hex(self.token)[:24]}...")
-        print(f"  Zaślepiony (to widzi Rząd A): {hex(self.blinded_token)[:24]}...")
+        print(f"  Zaślepiony (to widzi Rząd A): {hex(self.zaslepiony_token)[:24]}...")
         print(f"  → Rząd A NIE MOŻE odzyskać mojego tokenu z tego co widzi")
 
         # Wysyłam PESEL + zaślepiony token do Rządu A
-        result = gov_a.verify_age_and_blind_sign(self.pesel, self.blinded_token)
+        wynik = rzad_a.zweryfikuj_wiek_i_podpisz_slepo(self.pesel, self.zaslepiony_token)
 
-        if result["success"]:
+        if wynik["sukces"]:
             # Odślepiam podpis — teraz mam ważny podpis na moim tokenie!
-            self.token_signature = BlindRSA.unblind(
-                result["blind_signature"], self.blind_r, result["pubkey_n"]
+            self.podpis_tokenu = SlepyRSA.odslep(
+                wynik["slepy_podpis"], self.czynnik_r, wynik["klucz_publiczny_n"]
             )
 
             # Weryfikuję że podpis jest poprawny
-            sig_ok = BlindRSA.verify(
-                self.token_hash, self.token_signature,
-                result["pubkey_e"], result["pubkey_n"]
+            podpis_ok = SlepyRSA.zweryfikuj(
+                self.hash_tokenu, self.podpis_tokenu,
+                wynik["klucz_publiczny_e"], wynik["klucz_publiczny_n"]
             )
 
             print(f"\n[Użytkownik] Odślepiłem podpis.")
-            print(f"  Podpis ważny: {'TAK ✓' if sig_ok else 'NIE ✗'}")
+            print(f"  Podpis ważny: {'TAK ✓' if podpis_ok else 'NIE ✗'}")
             print(f"  Rząd A podpisał coś, czego nigdy nie widział!")
 
-            self.gov_a_pubkey_e = result["pubkey_e"]
-            self.gov_a_pubkey_n = result["pubkey_n"]
+            self.klucz_rzadu_a_e = wynik["klucz_publiczny_e"]
+            self.klucz_rzadu_a_n = wynik["klucz_publiczny_n"]
 
-        return result
+        return wynik
 
-    def get_anonymous_code(self, gov_b: GovB_CodeIssuer) -> dict:
+    def pobierz_anonimowy_kod(self, rzad_b: RzadB_WydawcaKodow) -> dict:
         """Krok 2: Przedstawiam anonimowy token Rządowi B, dostaję kod."""
 
         print(f"\n[Użytkownik] Wysyłam anonimowy token do Rządu B...")
         print(f"  Rząd B nie wie kim jestem — ma tylko token z podpisem Rządu A")
 
-        # Zaślepiam dane wejściowe dla OPRF
-        oprf_input = f"age_verification_{self.token}_{time.time()}".encode()
-        blinded_oprf, self.oprf_r, self.oprf_h = gov_b.oprf.client_blind(oprf_input)
+        # Zaślepiam dane wejściowe dla PRF
+        dane_prf = f"weryfikacja_wieku_{self.token}_{time.time()}".encode()
+        zaslepione_prf, self.czynnik_prf_r, self.hash_prf = rzad_b.oprf.klient_zaslep(dane_prf)
 
         # Wysyłam do Rządu B:
-        #   - zaślepione dane OPRF (Rząd B nie widzi treści)
+        #   - zaślepione dane PRF (Rząd B nie widzi treści)
         #   - token z podpisem Rządu A (Rząd B weryfikuje wiek, nie zna tożsamości)
-        result = gov_b.process_oprf_and_issue_code(
-            blinded_oprf_input=blinded_oprf,
-            token_hash=self.token_hash,
-            token_signature=self.token_signature,
-            gov_a_pubkey_e=self.gov_a_pubkey_e,
-            gov_a_pubkey_n=self.gov_a_pubkey_n,
+        wynik = rzad_b.przetworz_oprf_i_wydaj_kod(
+            zaslepione_dane_oprf=zaslepione_prf,
+            hash_tokenu=self.hash_tokenu,
+            podpis_tokenu=self.podpis_tokenu,
+            klucz_rzadu_a_e=self.klucz_rzadu_a_e,
+            klucz_rzadu_a_n=self.klucz_rzadu_a_n,
         )
 
-        if result["success"]:
-            # Odślepiam wynik OPRF (opcjonalnie — do dodatkowej weryfikacji)
-            oprf_result = gov_b.oprf.client_unblind(
-                result["oprf_evaluated"], self.oprf_r
+        if wynik["sukces"]:
+            # Odślepiam wynik PRF (opcjonalnie — do dodatkowej weryfikacji)
+            wynik_prf = rzad_b.oprf.klient_odslep(
+                wynik["wynik_oprf"], self.czynnik_prf_r
             )
 
-            self.code = result["code"]
-            print(f"\n[Użytkownik] Otrzymałem kod: ★ {self.code} ★")
+            self.kod = wynik["kod"]
+            print(f"\n[Użytkownik] Otrzymałem kod: ★ {self.kod} ★")
             print(f"  Mogę go teraz przepisać na dowolnej stronie 18+")
 
-        return result
+        return wynik
 
 
-class AdultSite:
+class Strona18Plus:
     """STRONA 18+ — weryfikuje kod, nie zna tożsamości.
 
     WIDZI: 6-cyfrowy kod
@@ -560,44 +560,44 @@ class AdultSite:
     DOWIADUJE SIĘ: "wiek zweryfikowany" / "kod nieważny"
     """
 
-    def __init__(self, name="example-adult-site.pl"):
-        self.name = name
+    def __init__(self, nazwa="example-adult-site.pl"):
+        self.nazwa = nazwa
 
-    def verify_user(self, code: str, gov_b: GovB_CodeIssuer) -> bool:
+    def zweryfikuj_uzytkownika(self, kod: str, rzad_b: RzadB_WydawcaKodow) -> bool:
         """Użytkownik wpisał kod — weryfikujemy go u Rządu B."""
 
         print(f"\n{'='*60}")
-        print(f"STRONA 18+: {self.name}")
+        print(f"STRONA 18+: {self.nazwa}")
         print(f"{'='*60}")
-        print(f"\n[{self.name}] Użytkownik wpisał kod: {code}")
+        print(f"\n[{self.nazwa}] Użytkownik wpisał kod: {kod}")
         print(f"  Odpytuję Rząd B o ważność...")
 
-        result = gov_b.verify_code(code)
+        wynik = rzad_b.zweryfikuj_kod(kod)
 
-        if result["valid"]:
-            print(f"\n[{self.name}] ✓ Wiek zweryfikowany! Przyznano dostęp.")
+        if wynik["wazny"]:
+            print(f"\n[{self.nazwa}] ✓ Wiek zweryfikowany! Przyznano dostęp.")
             print(f"  Nie wiem kim jest użytkownik — i nie muszę wiedzieć.")
         else:
-            print(f"\n[{self.name}] ✗ Kod odrzucony: {result['reason']}")
+            print(f"\n[{self.nazwa}] ✗ Kod odrzucony: {wynik['powod']}")
 
-        return result["valid"]
+        return wynik["wazny"]
 
 
 # ════════════════════════════════════════════════════════════════════
 # CZĘŚĆ 3: Pełna symulacja
 # ════════════════════════════════════════════════════════════════════
 
-def print_header(text):
-    width = 64
-    print(f"\n{'█'*width}")
-    print(f"█{text:^{width-2}}█")
-    print(f"{'█'*width}")
+def wypisz_naglowek(tekst):
+    szerokosc = 64
+    print(f"\n{'█'*szerokosc}")
+    print(f"█{tekst:^{szerokosc-2}}█")
+    print(f"{'█'*szerokosc}")
 
 
-def print_privacy_analysis(gov_a, gov_b):
+def wypisz_analize_prywatnosci(rzad_a, rzad_b):
     """Analiza: co każdy podmiot wie po zakończeniu procesu."""
 
-    print_header("ANALIZA PRYWATNOŚCI")
+    wypisz_naglowek("ANALIZA PRYWATNOŚCI")
 
     print(f"""
 ┌─────────────────────────────────────────────────────────┐
@@ -608,13 +608,13 @@ def print_privacy_analysis(gov_a, gov_b):
 │  • Użytkownik jest pełnoletni                           │
 │                                                         │
 │ NIE WIE (kryptograficznie):                             │
-│  • Jaki token podpisał (blind signature)                │
+│  • Jaki token podpisał (ślepy podpis)                   │
 │  • Jaki kod otrzymał użytkownik                         │
 │  • Na jakiej stronie użytkownik użył kodu               │
 │                                                         │
-│ Logi Rządu A:""")
-    for entry in gov_a.log:
-        print(f"│  {json.dumps(entry, indent=2, default=str)[:55]}")
+│ Dziennik Rządu A:""")
+    for wpis in rzad_a.dziennik:
+        print(f"│  {json.dumps(wpis, indent=2, default=str, ensure_ascii=False)[:55]}")
     print(f"""│                                                         │
 │ → Zaślepiony token to LOSOWY SZUM — nic z niego        │
 │   nie wynika, nawet przy zmowie z Rządem B              │
@@ -629,13 +629,13 @@ def print_privacy_analysis(gov_a, gov_b):
 │  • Kod został/nie został użyty                          │
 │                                                         │
 │ NIE WIE (kryptograficznie):                             │
-│  • Kim jest użytkownik (blind sig → brak powiązania)    │
-│  • Jaki był oryginalny token (OPRF → zaślepione dane)   │
-│  • Jakie dane przetworzyło OPRF (oblivious evaluation)  │
+│  • Kim jest użytkownik (ślepy podpis → brak powiązania) │
+│  • Jaki był oryginalny token (PRF → zaślepione dane)    │
+│  • Jakie dane przetworzyła PRF (nieświadome obliczenie) │
 │                                                         │
-│ Logi Rządu B:""")
-    for entry in gov_b.log:
-        print(f"│  {json.dumps(entry, indent=2, default=str)[:55]}")
+│ Dziennik Rządu B:""")
+    for wpis in rzad_b.dziennik:
+        print(f"│  {json.dumps(wpis, indent=2, default=str, ensure_ascii=False)[:55]}")
     print(f"""│                                                         │
 │ → Nawet gdyby Rząd B CHCIAŁ zidentyfikować użytkownika │
 │   — nie ma matematycznej możliwości                     │
@@ -648,65 +648,65 @@ def print_privacy_analysis(gov_a, gov_b):
 │ Rząd B ma: odślepiony_token + kod (bez tożsamości)      │
 │                                                         │
 │ Zaślepiony token ≠ odślepiony token                     │
-│ (to jest sedno blind signature!)                        │
+│ (to jest sedno ślepego podpisu!)                        │
 │                                                         │
-│ Nawet mając OBA logi, NIE DA SIĘ powiązać wpisów        │
+│ Nawet mając OBA dzienniki, NIE DA SIĘ powiązać wpisów   │
 │ z Rządu A z wpisami z Rządu B.                          │
 │                                                         │
 │ Jedyny atak: korelacja czasowa przy małym ruchu.         │
-│ Obrona: batch prefetch tokenów (użytkownik pobiera      │
-│ tokeny na zapas, losowo, w tle).                        │
+│ Obrona: grupowe pobieranie tokenów z wyprzedzeniem      │
+│ (użytkownik pobiera tokeny na zapas, losowo, w tle).    │
 └─────────────────────────────────────────────────────────┘""")
 
 
-def run_demo():
+def uruchom_demo():
     """Uruchamia pełną symulację systemu."""
 
-    print_header("INICJALIZACJA SYSTEMU")
+    wypisz_naglowek("INICJALIZACJA SYSTEMU")
 
     # Inicjalizacja podmiotów rządowych
-    gov_a = GovA_AgeVerifier()
-    gov_b = GovB_CodeIssuer()
+    rzad_a = RzadA_WeryfikatorWieku()
+    rzad_b = RzadB_WydawcaKodow()
 
     # Strona 18+
-    site = AdultSite("example-adult.pl")
+    strona = Strona18Plus("example-adult.pl")
 
     # Użytkownik (PESEL z 1995 roku → 31 lat → pełnoletni)
-    user = User(pesel="95030112345", name="Jan Kowalski")
+    uzytkownik = Uzytkownik(pesel="95030112345", imie="Jan Kowalski")
 
     # ── KROK 1: Weryfikacja wieku + ślepy podpis ──
-    print_header("KROK 1: WERYFIKACJA WIEKU (Rząd A)")
-    result_a = user.request_blind_signature(gov_a)
+    wypisz_naglowek("KROK 1: WERYFIKACJA WIEKU (Rząd A)")
+    wynik_a = uzytkownik.popros_o_slepy_podpis(rzad_a)
 
-    if not result_a["success"]:
+    if not wynik_a["sukces"]:
         print("Weryfikacja nieudana — koniec.")
         return
 
     # ── KROK 2: Anonimowy token → krótki kod ──
-    print_header("KROK 2: WYDANIE KODU (Rząd B)")
-    result_b = user.get_anonymous_code(gov_b)
+    wypisz_naglowek("KROK 2: WYDANIE KODU (Rząd B)")
+    wynik_b = uzytkownik.pobierz_anonimowy_kod(rzad_b)
 
-    if not result_b["success"]:
+    if not wynik_b["sukces"]:
         print("Wydanie kodu nieudane — koniec.")
         return
 
     # ── KROK 3: Użycie kodu na stronie 18+ ──
-    print_header("KROK 3: WERYFIKACJA NA STRONIE 18+")
-    site.verify_user(user.code, gov_b)
+    wypisz_naglowek("KROK 3: WERYFIKACJA NA STRONIE 18+")
+    strona.zweryfikuj_uzytkownika(uzytkownik.kod, rzad_b)
 
     # ── KROK 4: Próba ponownego użycia (powinna się nie udać) ──
-    print_header("KROK 4: PRÓBA REUŻYCIA KODU (atak)")
-    site.verify_user(user.code, gov_b)
+    wypisz_naglowek("KROK 4: PRÓBA PONOWNEGO UŻYCIA KODU (atak)")
+    strona.zweryfikuj_uzytkownika(uzytkownik.kod, rzad_b)
 
     # ── Analiza prywatności ──
-    print_privacy_analysis(gov_a, gov_b)
+    wypisz_analize_prywatnosci(rzad_a, rzad_b)
 
     # ── Test: osoba niepełnoletnia ──
-    print_header("TEST: OSOBA NIEPEŁNOLETNIA")
-    minor = User(pesel="10250154321", name="Mały Jaś")  # 2010 → 16 lat
-    result_minor = minor.request_blind_signature(gov_a)
-    print(f"\n→ System poprawnie odrzucił niepełnoletniego: {result_minor}")
+    wypisz_naglowek("TEST: OSOBA NIEPEŁNOLETNIA")
+    niepelnoletni = Uzytkownik(pesel="10250154321", imie="Mały Jaś")  # 2010 → 16 lat
+    wynik_niepelnoletni = niepelnoletni.popros_o_slepy_podpis(rzad_a)
+    print(f"\n→ System poprawnie odrzucił niepełnoletniego: {wynik_niepelnoletni}")
 
 
 if __name__ == "__main__":
-    run_demo()
+    uruchom_demo()
