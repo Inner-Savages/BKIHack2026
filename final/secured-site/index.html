@@ -248,7 +248,7 @@
       if (recoveredBasePrefix < 0 || recoveredBasePrefix % MODULO !== 0) { return { valid: false, reason: 'divisibility' }; }
       var ageMinutes = minutesDiffWrap(minute, date.getMinutes());
       if (!Number.isFinite(ageMinutes)) { return { valid: false, reason: 'minute' }; }
-      if (ageMinutes > 5) { return { valid: false, reason: 'expired' }; }
+      if (ageMinutes > 2) { return { valid: false, reason: 'expired' }; }
       return { valid: true, reason: null };
     }
 

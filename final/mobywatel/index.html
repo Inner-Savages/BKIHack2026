@@ -513,7 +513,7 @@
           <div class="code-number" id="codeDisplay">--- ---</div>
           <div class="code-timer timer-ok" id="codeTimer">
             <span>⏱️</span>
-            <span id="timerText">5:00</span>
+            <span id="timerText">2:00</span>
           </div>
           <div class="timer-bar">
             <div class="timer-fill fill-ok" id="timerFill" style="width:100%"></div>
@@ -611,7 +611,7 @@ async function runCryptoAnimation() {
 
   const code = CodeAuth.generateVerificationCode();
   state.currentCode = code;
-  state.codeExpiry  = Date.now() + 300000;
+  state.codeExpiry  = Date.now() + 120000;
 
   const steps = [
     {
@@ -679,7 +679,7 @@ function startTimer() {
 
   state.timerInterval = setInterval(() => {
     const remaining = Math.max(0, state.codeExpiry - Date.now());
-    const pct     = (remaining / 300000) * 100;
+    const pct     = (remaining / 120000) * 100;
     const seconds = Math.ceil(remaining / 1000);
 
     document.getElementById('timerText').textContent =
