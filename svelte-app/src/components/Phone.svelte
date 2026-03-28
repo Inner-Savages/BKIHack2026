@@ -1,27 +1,40 @@
 <script>
   import { onDestroy } from 'svelte';
-  import { activeCodes } from '../lib/stores.js';
-  import { randomHex, generateCode, formatCode, sleep, buildCryptoSteps } from '../lib/crypto.js';
+  import { lastGeneratedCode } from '../lib/stores.js';
+  import {
+    fetchPublicKey,
+    generateAndBlindToken,
+    requestBlindSign,
+    fetchOprfParams,
+    requestCode,
+    formatCode,
+    sleep,
+  } from '../lib/crypto.js';
 
   let step = 1;
-  let cryptoLog = [];
-  let processingText = 'Zaślepiam token...';
-  let processingSubtext = 'Generowanie losowego czynnika zaślepiającego';
 
+  // Krok 2 — przetwarzanie
+  let processingText = '';
+  let processingSubtext = '';
+  let cryptoLog = [];
+
+  // Krok 3 — kod
   let code = null;
   let codeExpiry = null;
   let timerInterval = null;
   let timerRemaining = 300000;
   let codeExpiredLocally = false;
   let copySuccess = false;
+  let codeUsed = false;
 
-  $: isCodeUsed = code !== null && ($activeCodes[code]?.used === true);
+  // Błąd
+  let errorMsg = null;
+
   $: timerPct = 100 * timerRemaining / 300000;
   $: timerColorClass = timerPct > 40 ? 'timer-ok' : timerPct > 15 ? 'timer-warn' : 'timer-danger';
   $: barColorClass = timerPct > 40 ? 'fill-ok' : timerPct > 15 ? 'fill-warn' : 'fill-danger';
   $: timerExpired = timerRemaining <= 0 || codeExpiredLocally;
   $: formattedTime = timerExpired ? 'WYGASŁ' : formatTimerDisplay(timerRemaining);
-  $: headerGreen = step === 3;
 
   function formatTimerDisplay(ms) {
     const totalSec = Math.ceil(ms / 1000);
@@ -30,9 +43,10 @@
     return `${min}:${String(sec).padStart(2, '0')}`;
   }
 
-  function startTimer() {
+  function startTimer(expiryMs) {
     if (timerInterval) clearInterval(timerInterval);
-    timerRemaining = Math.max(0, codeExpiry - Date.now());
+    codeExpiry = Date.now() + expiryMs;
+    timerRemaining = expiryMs;
     codeExpiredLocally = false;
 
     timerInterval = setInterval(() => {
@@ -40,67 +54,120 @@
       if (timerRemaining <= 0) {
         clearInterval(timerInterval);
         codeExpiredLocally = true;
-        activeCodes.update((codes) => {
-          const updated = { ...codes };
-          if (code && updated[code]) delete updated[code];
-          return updated;
-        });
+        lastGeneratedCode.set(null);
       }
     }, 200);
   }
 
+  function addLog(html) {
+    cryptoLog = [...cryptoLog, html];
+  }
+
+  function setProcessing(text, sub) {
+    processingText = text;
+    processingSubtext = sub;
+  }
+
   async function handleGenerate() {
-    if (code) {
-      activeCodes.update((codes) => {
-        const updated = { ...codes };
-        delete updated[code];
-        return updated;
-      });
-    }
-    if (timerInterval) clearInterval(timerInterval);
+    // Reset
     code = null;
-    copySuccess = false;
+    codeUsed = false;
     codeExpiredLocally = false;
+    copySuccess = false;
+    errorMsg = null;
+    cryptoLog = [];
+    if (timerInterval) clearInterval(timerInterval);
+    lastGeneratedCode.set(null);
 
     step = 2;
-    cryptoLog = [];
 
-    const steps = buildCryptoSteps();
+    try {
+      // ── KROK 1: Klucz publiczny Gov A ──────────────────────────
+      setProcessing('Pobieram klucz publiczny Rządu A…', 'GET /gov-a/public-key');
+      await sleep(400);
+      const { e, n, eHex, nHex } = await fetchPublicKey();
+      addLog(
+        `<strong>Gov A (mObywatel):</strong> Klucz publiczny RSA pobrany<br>` +
+        `<em>n = ${nHex.slice(0, 18)}…</em>`
+      );
+      await sleep(500);
 
-    for (let i = 0; i < steps.length; i++) {
-      const s = steps[i];
-      processingText = s.text;
-      processingSubtext = s.sub;
+      // ── KROK 2: Generowanie tokenu + zaślepienie (KLIENT) ───────
+      setProcessing('Zaślepiam token…', 'Generowanie losowego czynnika r, obliczam: blinded = hash(token) × r^e mod n');
+      await sleep(500);
+      const { tokenHex, tokenHashBigInt, tokenHashHex, blindedHex, blindingR } =
+        await generateAndBlindToken(e, n);
+      addLog(
+        `<strong>Użytkownik (przeglądarka):</strong> Token wygenerowany i zaślepiony<br>` +
+        `hash(token) = <em>${tokenHashHex.slice(0, 18)}…</em><br>` +
+        `Rząd A zobaczy: <em>${blindedHex.slice(0, 18)}… (losowy szum)</em>`
+      );
+      await sleep(600);
 
-      if (i === steps.length - 1) {
-        const newCode = generateCode();
-        code = newCode;
-        codeExpiry = Date.now() + 300000;
-        timerRemaining = 300000;
+      // ── KROK 3: Ślepy podpis od Gov A ───────────────────────────
+      setProcessing('Wysyłam do Rządu A…', 'POST /gov-a/sign — PESEL + zaślepiony token');
+      await sleep(400);
+      const { blindSigHex, signatureHex } = await requestBlindSign(
+        '95030112345', blindedHex, blindingR, n
+      );
+      addLog(
+        `<strong>Gov A:</strong> PESEL → wiek 31 lat ✓<br>` +
+        `Podpisano zaślepiony token (nie widziałem zawartości!)<br>` +
+        `Ślepy podpis: <em>${blindSigHex.slice(0, 18)}…</em>`
+      );
+      await sleep(500);
 
-        activeCodes.update((codes) => ({
-          ...codes,
-          [newCode]: { expiry: codeExpiry, used: false },
-        }));
+      setProcessing('Odślepiam podpis…', 'sig = blind_sig × r⁻¹ mod n (operacja w przeglądarce)');
+      await sleep(400);
+      addLog(
+        `<strong>Użytkownik:</strong> Podpis odślepiony ✓<br>` +
+        `Mam ważny podpis RSA na tokenie, którego Gov A nigdy nie widział<br>` +
+        `sig = <em>${signatureHex.slice(0, 18)}…</em>`
+      );
+      await sleep(500);
 
-        cryptoLog = [
-          ...cryptoLog,
-          `<strong>Rząd B:</strong> Wygenerowano kod <strong>${formatCode(newCode)}</strong><br>Tożsamość: NIEZNANA (ślepy podpis uniemożliwia identyfikację)`,
-        ];
-      } else if (s.log) {
-        cryptoLog = [...cryptoLog, s.log()];
-      }
+      // ── KROK 4: Parametry OPRF + wydanie kodu przez Gov B ───────
+      setProcessing('Pobieram parametry OPRF…', 'GET /gov-b/oprf-params');
+      await sleep(300);
+      const { p, g } = await fetchOprfParams();
+      addLog(
+        `<strong>Gov B (NASK):</strong> Parametry OPRF pobranie<br>` +
+        `<em>p = ${p.toString(16).slice(0, 16)}…</em>`
+      );
+      await sleep(400);
 
-      await sleep(600 + Math.random() * 400);
+      setProcessing('Wysyłam anonimowy token do Rządu B…', 'POST /gov-b/issue-code — token + podpis, bez PESELu');
+      await sleep(400);
+      const { code: newCode, expiresIn, blindedOprfHex } = await requestCode(
+        tokenHashHex, signatureHex, eHex, nHex, p, g
+      );
+      addLog(
+        `<strong>Gov B:</strong> Podpis Rządu A ważny ✓<br>` +
+        `Ktoś anonimowy ma 18+ — nie wiem kto<br>` +
+        `OPRF wejście: <em>${blindedOprfHex.slice(0, 16)}… (szum)</em>`
+      );
+      await sleep(400);
+
+      // ── Sukces ──────────────────────────────────────────────────
+      code = newCode;
+      addLog(
+        `<strong>Gov B:</strong> Wygenerowano kod <strong>${formatCode(newCode)}</strong><br>` +
+        `Tożsamość: NIEZNANA — ślepy podpis uniemożliwia identyfikację`
+      );
+
+      lastGeneratedCode.set(newCode);
+      await sleep(600);
+      startTimer(expiresIn * 1000);
+      step = 3;
+
+    } catch (err) {
+      errorMsg = err.message || 'Nieznany błąd';
+      step = 1;
     }
-
-    await sleep(500);
-    startTimer();
-    step = 3;
   }
 
   async function handleCopy() {
-    if (!code || isCodeUsed || timerExpired) return;
+    if (!code || codeUsed || timerExpired) return;
     try {
       await navigator.clipboard.writeText(code);
     } catch (_) {}
@@ -180,6 +247,9 @@
           <span class="crypto-arrow">→</span>
           <span>✍️ Podpis</span>
         </div>
+        {#if errorMsg}
+          <div class="error-box">⚠️ {errorMsg}</div>
+        {/if}
         <button class="btn btn-primary" on:click={handleGenerate}>
           Generuj anonimowy token
         </button>
@@ -271,7 +341,7 @@
       <div class="card">
         <div class="code-display">
           <div class="code-label">Twój jednorazowy kod</div>
-          <div class="code-number" style="opacity: {timerExpired ? 0.3 : 1}">
+          <div class="code-number" style="opacity: {timerExpired || codeUsed ? 0.3 : 1}">
             {code ? formatCode(code) : '--- ---'}
           </div>
           <div class="code-timer {timerColorClass}">
@@ -290,8 +360,8 @@
       <div class="card">
         <div class="info-row">
           <span class="info-label">Użycia</span>
-          <span class="info-value" style="color: {isCodeUsed ? '#c41e3a' : ''}">
-            {isCodeUsed ? 'Wykorzystany ✓' : 'Jednorazowy'}
+          <span class="info-value" style="color: {codeUsed ? '#c41e3a' : ''}">
+            {codeUsed ? 'Wykorzystany ✓' : 'Jednorazowy'}
           </span>
         </div>
         <div class="info-row">
@@ -302,7 +372,7 @@
           <span class="info-label">Strona widzi</span>
           <span class="info-value">Tylko kod</span>
         </div>
-        <button class="btn btn-green" on:click={handleCopy}>
+        <button class="btn btn-green" on:click={handleCopy} disabled={timerExpired || codeUsed}>
           {copySuccess ? 'Skopiowano! ✓' : 'Kopiuj kod'}
         </button>
       </div>
@@ -502,6 +572,17 @@
     color: #666;
   }
   .crypto-arrow { font-size: 14px; color: #c41e3a; }
+
+  /* ── Error box ── */
+  .error-box {
+    background: #fce4ec;
+    color: #c41e3a;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 12px;
+    margin-bottom: 8px;
+    line-height: 1.4;
+  }
 
   /* ── Buttons ── */
   .btn {

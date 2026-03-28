@@ -1,53 +1,59 @@
 <script>
-  import { activeCodes } from '../lib/stores.js';
+  import { verifyCode } from '../lib/crypto.js';
 
   let inputCode = '';
   let result = null;
   let inputDisabled = false;
+  let loading = false;
 
-  $: verifyEnabled = inputCode.length === 6 && !inputDisabled;
+  $: verifyEnabled = inputCode.length === 6 && !inputDisabled && !loading;
 
   function handleInput(e) {
     inputCode = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
   }
 
-  function handleVerify() {
-    const codes = $activeCodes;
-    const entry = codes[inputCode];
+  async function handleVerify() {
+    if (!verifyEnabled) return;
+    loading = true;
+    result = null;
 
-    if (!entry) {
-      result = { type: 'fail', icon: '✗', title: 'Kod nieważny', sub: 'Kod nie istnieje lub wygasł' };
-      return;
+    try {
+      const res = await verifyCode(inputCode);
+
+      if (res.valid) {
+        result = {
+          type: 'success',
+          icon: '✓',
+          title: 'Wiek zweryfikowany!',
+          sub: 'Dostęp przyznany. Nie znamy Twojej tożsamości.',
+        };
+        inputDisabled = true;
+      } else {
+        const reasonMap = {
+          'Kod nie istnieje': { icon: '✗', title: 'Kod nieważny', sub: 'Kod nie istnieje lub nigdy nie został wygenerowany' },
+          'Kod już wykorzystany': { icon: '✗', title: 'Kod już użyty', sub: 'Kody są jednorazowe — wygeneruj nowy w mObywatel' },
+          'Kod wygasł': { icon: '⏰', title: 'Kod wygasł', sub: 'Minęło 5 minut — wygeneruj nowy kod w mObywatel' },
+        };
+        const mapped = reasonMap[res.reason] ?? { icon: '✗', title: 'Odmowa dostępu', sub: res.reason ?? 'Nieznany błąd' };
+        result = { type: 'fail', ...mapped };
+      }
+    } catch (err) {
+      result = {
+        type: 'fail',
+        icon: '⚠️',
+        title: 'Błąd połączenia',
+        sub: 'Nie można połączyć się z serwerem weryfikacji. Sprawdź czy backend jest uruchomiony.',
+      };
+    } finally {
+      loading = false;
     }
-
-    if (entry.used) {
-      result = { type: 'fail', icon: '✗', title: 'Kod już użyty', sub: 'Kody są jednorazowe — wygeneruj nowy w mObywatel' };
-      return;
-    }
-
-    if (Date.now() > entry.expiry) {
-      activeCodes.update((c) => {
-        const updated = { ...c };
-        delete updated[inputCode];
-        return updated;
-      });
-      result = { type: 'fail', icon: '⏰', title: 'Kod wygasł', sub: 'Minęło 5 minut — wygeneruj nowy kod' };
-      return;
-    }
-
-    activeCodes.update((c) => ({
-      ...c,
-      [inputCode]: { ...c[inputCode], used: true },
-    }));
-
-    result = { type: 'success', icon: '✓', title: 'Wiek zweryfikowany!', sub: 'Dostęp przyznany. Nie znamy Twojej tożsamości.' };
-    inputDisabled = true;
   }
 
   function handleReset() {
     inputCode = '';
     result = null;
     inputDisabled = false;
+    loading = false;
   }
 </script>
 
@@ -84,7 +90,7 @@
         on:input={handleInput}
       />
       <button class="site-btn" disabled={!verifyEnabled} on:click={handleVerify}>
-        Zweryfikuj wiek
+        {loading ? 'Weryfikuję…' : 'Zweryfikuj wiek'}
       </button>
     </div>
 
