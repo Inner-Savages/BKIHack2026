@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Secured Site - Weryfikacja Wieku</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(135deg, #4a90d9 0%, #2968a8 100%);
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .site-frame {
+      width: 480px;
+      min-height: 740px;
+      background: #1a1a2e;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.3);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .browser-bar {
+      background: #2d2d44;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .dot { width: 12px; height: 12px; border-radius: 50%; }
+    .dot-red { background: #ff5f57; }
+    .dot-yellow { background: #febc2e; }
+    .dot-green { background: #28c840; }
+
+    .url {
+      flex: 1;
+      background: #1a1a2e;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      color: #8b8b99;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .content {
+      flex: 1;
+      padding: 32px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .site-logo { font-size: 32px; margin-bottom: 8px; }
+
+    .title {
+      color: #fff;
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      color: #999;
+      font-size: 13px;
+      margin-bottom: 28px;
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    .card {
+      background: #2d2d44;
+      border-radius: 16px;
+      padding: 24px;
+      width: 100%;
+    }
+
+    .card h3 {
+      color: #fff;
+      font-size: 15px;
+      margin-bottom: 14px;
+    }
+
+    .input {
+      width: 100%;
+      padding: 16px;
+      background: #1a1a2e;
+      border: 2px solid #3d3d5c;
+      border-radius: 12px;
+      color: #fff;
+      font-size: 28px;
+      font-weight: 700;
+      text-align: center;
+      letter-spacing: 10px;
+      font-variant-numeric: tabular-nums;
+      outline: none;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+
+    .input:focus { border-color: #7c4dff; }
+    .input::placeholder { color: #555; letter-spacing: 2px; font-size: 16px; font-weight: 400; }
+
+    .btn {
+      width: 100%;
+      margin-top: 16px;
+      padding: 16px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #7c4dff, #651fff);
+      color: #fff;
+      font-size: 16px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.2s;
+    }
+
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .result {
+      margin-top: 16px;
+      width: 100%;
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      line-height: 1.5;
+      animation: fadeIn 0.3s;
+    }
+
+    .result-ok {
+      background: rgba(46, 125, 50, 0.15);
+      border: 2px solid #2e7d32;
+    }
+
+    .result-ok .result-icon { font-size: 40px; margin-bottom: 8px; }
+    .result-ok .result-text { color: #fff; font-size: 16px; font-weight: 600; }
+    .result-ok .result-sub { color: #aaa; font-size: 12px; margin-top: 6px; }
+
+    .result-bad {
+      background: rgba(196, 30, 58, 0.15);
+      border: 2px solid #c41e3a;
+    }
+
+    .result-bad .result-icon { font-size: 40px; margin-bottom: 8px; }
+    .result-bad .result-text { color: #fff; font-size: 16px; font-weight: 600; }
+    .result-bad .result-sub { color: #aaa; font-size: 12px; margin-top: 6px; }
+
+    .site-info {
+      color: #666;
+      font-size: 11px;
+      text-align: center;
+      margin-top: 16px;
+      line-height: 1.5;
+    }
+
+    .site-info strong { color: #aaa; }
+
+    .site-reset {
+      background: none;
+      border: 1px solid #3d3d5c;
+      color: #aaa;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 13px;
+      cursor: pointer;
+      margin-top: 12px;
+    }
+
+    .site-reset:hover { border-color: #7c4dff; color: #fff; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 540px) {
+      .site-frame { width: 100%; min-height: 680px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="site-frame">
+    <div class="browser-bar">
+      <div class="dot dot-red"></div>
+      <div class="dot dot-yellow"></div>
+      <div class="dot dot-green"></div>
+      <div class="url"><span style="color:#28c840">🔒</span> https://example-adult.pl/weryfikacja</div>
+    </div>
+
+    <div class="content">
+      <div class="site-logo">🔞</div>
+      <div class="title">Weryfikacja wieku</div>
+      <div class="subtitle">Wpisz 6-cyfrowy kod z aplikacji mObywatel</div>
+
+      <div class="card">
+        <h3>Kod weryfikacyjny</h3>
+        <input id="codeInput" class="input" type="text" inputmode="numeric" maxlength="6" placeholder="------" pattern="[0-9]*" autocomplete="off">
+        <button id="verifyBtn" class="btn" disabled>Zweryfikuj wiek</button>
+        <div id="result"></div>
+      </div>
+
+      <div class="site-info">
+        <strong>Prywatność:</strong> Ta strona otrzymuje wyłącznie odpowiedź TAK/NIE.<br>
+        Nie znamy Twojego imienia, PESELu ani żadnych danych osobowych.
+      </div>
+    </div>
+  </div>
+
+  <script>
+  // ============ CODE-AUTH (embedded) ============
+  (function (global) {
+    'use strict';
+
+    var STORAGE_KEY = 'age-verification-last-code';
+    var MODULO = 137;
+    var MAX_CODE_PREFIX = 9999;
+    var MAX_MINUTE = 59;
+    var MAX_BASE_PREFIX = MAX_CODE_PREFIX - MAX_MINUTE;
+
+    function pad2(value) {
+      return String(value).padStart(2, '0');
+    }
+
+    function minutesDiffWrap(fromMinute, toMinute) {
+      var a = Number(fromMinute);
+      var b = Number(toMinute);
+      if (!Number.isInteger(a) || !Number.isInteger(b) || a < 0 || b < 0 || a > MAX_MINUTE || b > MAX_MINUTE) { return NaN; }
+      return (b - a + 60) % 60;
+    }
+
+    function validateVerificationCode(code, now) {
+      var date = now instanceof Date ? now : new Date();
+      if (!/^\d{6}$/.test(code)) { return { valid: false, reason: 'format' }; }
+      var encodedPrefix = Number(code.slice(0, 4));
+      var minute = Number(code.slice(4, 6));
+      if (!Number.isInteger(minute) || minute < 0 || minute > MAX_MINUTE) { return { valid: false, reason: 'minute' }; }
+      var recoveredBasePrefix = encodedPrefix - minute;
+      if (recoveredBasePrefix < 0 || recoveredBasePrefix % MODULO !== 0) { return { valid: false, reason: 'divisibility' }; }
+      var ageMinutes = minutesDiffWrap(minute, date.getMinutes());
+      if (!Number.isFinite(ageMinutes)) { return { valid: false, reason: 'minute' }; }
+      if (ageMinutes > 5) { return { valid: false, reason: 'expired' }; }
+      return { valid: true, reason: null };
+    }
+
+    global.CodeAuth = { validateVerificationCode: validateVerificationCode };
+  })(window);
+
+  // ============ APP ============
+  var input = document.getElementById('codeInput');
+  var verifyBtn = document.getElementById('verifyBtn');
+  var resultDiv = document.getElementById('result');
+
+  input.addEventListener('input', function () {
+    this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);
+    verifyBtn.disabled = this.value.length !== 6;
+  });
+
+  verifyBtn.addEventListener('click', function () {
+    var code = input.value;
+    var validation = CodeAuth.validateVerificationCode(code);
+
+    // Clear field immediately after attempt.
+    input.value = '';
+    verifyBtn.disabled = true;
+
+    if (!validation.valid) {
+      if (validation.reason === 'expired') {
+        resultDiv.innerHTML = '<div class="result result-bad"><div class="result-icon">⏰</div><div class="result-text">Kod wygasł</div><div class="result-sub">Kod nie jest już ważny. Wygeneruj nowy kod.</div></div><button class="site-reset" id="btnReset">Spróbuj ponownie</button>';
+      } else {
+        resultDiv.innerHTML = '<div class="result result-bad"><div class="result-icon">✗</div><div class="result-text">Kod nieważny</div><div class="result-sub">Kod nie został zaakceptowany. Sprawdź i spróbuj ponownie.</div></div><button class="site-reset" id="btnReset">Spróbuj ponownie</button>';
+      }
+      document.getElementById('btnReset').addEventListener('click', resetForm);
+      return;
+    }
+
+    resultDiv.innerHTML = '<div class="result result-ok"><div class="result-icon">✓</div><div class="result-text">Wiek zweryfikowany!</div><div class="result-sub">Dostęp przyznany. Nie znamy Twojej tożsamości.</div></div><button class="site-reset" id="btnReset">Zweryfikuj kolejny kod</button>';
+    document.getElementById('btnReset').addEventListener('click', resetForm);
+  });
+
+  function resetForm() {
+    input.value = '';
+    input.disabled = false;
+    verifyBtn.disabled = true;
+    resultDiv.innerHTML = '';
+  }
+  </script>
+</body>
+</html>
+
