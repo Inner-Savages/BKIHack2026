@@ -256,9 +256,33 @@
   })(window);
 
   // ============ APP ============
+  var USED_CODES_STORAGE_KEY = 'age-verification-used-codes';
   var input = document.getElementById('codeInput');
   var verifyBtn = document.getElementById('verifyBtn');
   var resultDiv = document.getElementById('result');
+
+  function getUsedCodes() {
+    try {
+      var raw = window.localStorage.getItem(USED_CODES_STORAGE_KEY);
+      var parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function isCodeUsed(code) {
+    return getUsedCodes().includes(code);
+  }
+
+  function markCodeAsUsed(code) {
+    var usedCodes = getUsedCodes();
+    if (usedCodes.includes(code)) {
+      return;
+    }
+    usedCodes.push(code);
+    window.localStorage.setItem(USED_CODES_STORAGE_KEY, JSON.stringify(usedCodes));
+  }
 
   input.addEventListener('input', function () {
     this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);
@@ -282,6 +306,14 @@
       document.getElementById('btnReset').addEventListener('click', resetForm);
       return;
     }
+
+    if (isCodeUsed(code)) {
+      resultDiv.innerHTML = '<div class="result result-bad"><div class="result-icon">🔁</div><div class="result-text">Kod już wykorzystany</div><div class="result-sub">Ten kod jest jednorazowy. Wygeneruj nowy kod i spróbuj ponownie.</div></div><button class="site-reset" id="btnReset">Rozumiem</button>';
+      document.getElementById('btnReset').addEventListener('click', resetForm);
+      return;
+    }
+
+    markCodeAsUsed(code);
 
     resultDiv.innerHTML = '<div class="result result-ok"><div class="result-icon">✓</div><div class="result-text">Wiek zweryfikowany!</div><div class="result-sub">Dostęp przyznany. Nie znamy Twojej tożsamości.</div></div><button class="site-reset" id="btnReset">Zweryfikuj kolejny kod</button>';
     document.getElementById('btnReset').addEventListener('click', resetForm);
